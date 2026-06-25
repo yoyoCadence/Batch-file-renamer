@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-TW">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -9,195 +9,223 @@
     <link rel="icon" href="./assets/icon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="./assets/style.css">
   </head>
-  <body>
+  <body data-template="material" data-theme="sage">
     <div class="app-shell">
       <header class="topbar">
         <div>
-          <p class="eyebrow">Preview-first local file utility</p>
-          <h1>Batch File Renamer</h1>
+          <p class="eyebrow" data-i18n="app.eyebrow">先預覽再執行的本機檔案工具</p>
+          <h1 data-i18n="app.title">批次檔名工具</h1>
         </div>
         <div class="topbar-actions">
-          <span id="supportBadge" class="support-badge">Checking file access</span>
-          <button id="installButton" class="ghost-button" type="button" hidden>Install</button>
+          <span id="supportBadge" class="support-badge" data-i18n="support.checking">正在檢查檔案權限</span>
+          <button id="openSettingsButton" class="ghost-button" type="button" data-i18n="settings.open">設定</button>
+          <button id="installButton" class="ghost-button" type="button" data-i18n="install" hidden>安裝</button>
         </div>
       </header>
 
       <main class="workspace">
-        <section class="panel setup-panel" aria-label="File setup">
+        <section class="panel guide-panel" aria-label="Workflow" data-i18n-aria-label="guide.title">
+          <div class="guide-content">
+            <div>
+              <h2 data-i18n="guide.title">操作流程</h2>
+              <p id="supportDetail" data-i18n="guide.supportDirect">此瀏覽器支援直接本機檔案操作；仍請先確認預覽列狀態。</p>
+            </div>
+            <ol class="workflow-steps">
+              <li><span>1</span><strong data-i18n="guide.stepFiles">選擇檔案</strong></li>
+              <li><span>2</span><strong data-i18n="guide.stepRules">建立規則</strong></li>
+              <li><span>3</span><strong data-i18n="guide.stepPreview">檢查預覽</strong></li>
+              <li><span>4</span><strong data-i18n="guide.stepExecute">只執行 OK</strong></li>
+            </ol>
+          </div>
+        </section>
+
+        <section class="panel setup-panel" aria-label="File setup" data-i18n-aria-label="setup.title">
           <div class="panel-header">
             <div>
-              <h2>Setup</h2>
-              <p id="fileSummary">No files loaded.</p>
+              <h2 data-i18n="setup.title">檔案設定</h2>
+              <p id="fileSummary">尚未載入檔案。</p>
             </div>
             <div class="segmented" role="radiogroup" aria-label="Mode">
               <label>
                 <input type="radio" name="mode" value="rename" checked>
-                <span>Rename</span>
+                <span data-i18n="mode.rename">重新命名</span>
               </label>
               <label>
                 <input type="radio" name="mode" value="copy">
-                <span>Copy</span>
+                <span data-i18n="mode.copy">複製</span>
               </label>
             </div>
           </div>
 
           <div id="renameSetup" class="mode-panel">
             <div class="action-row">
-              <button id="pickSourceFolderButton" class="primary-button" type="button">Pick source folder</button>
-              <button id="addFilesButton" type="button">Add files for preview</button>
-              <button id="clearSourcesButton" type="button">Clear</button>
+              <button id="pickSourceFolderButton" class="primary-button" type="button" data-i18n="button.pickSourceFolder">選擇來源資料夾</button>
+              <button id="addFilesButton" type="button" data-i18n="button.addFiles">加入檔案預覽</button>
+              <button id="clearSourcesButton" type="button" data-i18n="button.clear">清除</button>
             </div>
             <input id="fileInput" type="file" multiple hidden>
-            <p class="hint">Folder selection enables direct execution in Chromium. Plain file selection supports preview and CSV export.</p>
+            <p class="hint" data-i18n="hint.rename">選擇資料夾可在 Chromium 直接執行。單純加入檔案則支援預覽與 CSV 匯出。</p>
             <div id="sourceList" class="file-list" aria-live="polite"></div>
           </div>
 
           <div id="copySetup" class="mode-panel" hidden>
             <div class="field-grid compact">
               <label>
-                <span>Template file</span>
-                <input id="templateName" type="text" readonly placeholder="No template selected">
+                <span data-i18n="field.templateFile">模板檔案</span>
+                <input id="templateName" type="text" readonly data-i18n-placeholder="placeholder.noTemplate" placeholder="尚未選擇模板">
               </label>
               <label>
-                <span>Output folder</span>
-                <input id="outputFolderName" type="text" readonly placeholder="No output folder selected">
+                <span data-i18n="field.outputFolder">輸出資料夾</span>
+                <input id="outputFolderName" type="text" readonly data-i18n-placeholder="placeholder.noOutputFolder" placeholder="尚未選擇輸出資料夾">
               </label>
               <label>
-                <span>Output count</span>
+                <span data-i18n="field.outputCount">輸出數量</span>
                 <input id="copyCount" type="number" min="1" max="9999" value="5">
               </label>
             </div>
             <div class="action-row">
-              <button id="pickTemplateButton" class="primary-button" type="button">Pick template</button>
-              <button id="pickOutputFolderButton" type="button">Pick output folder</button>
+              <button id="pickTemplateButton" class="primary-button" type="button" data-i18n="button.pickTemplate">選擇模板</button>
+              <button id="pickOutputFolderButton" type="button" data-i18n="button.pickOutputFolder">選擇輸出資料夾</button>
             </div>
             <input id="templateInput" type="file" hidden>
           </div>
         </section>
 
-        <section class="panel rules-panel" aria-label="Rule builder">
+        <section class="panel rules-panel" aria-label="Rule builder" data-i18n-aria-label="rules.title">
           <div class="panel-header">
             <div>
-              <h2>Rules</h2>
-              <p>Rules run top to bottom on the filename without extension.</p>
+              <h2 data-i18n="rules.title">規則</h2>
+              <p data-i18n="rules.subtitle">規則會由上到下套用在不含副檔名的檔名上。</p>
             </div>
-            <button id="clearRulesButton" class="ghost-button" type="button">Clear rules</button>
+            <button id="clearRulesButton" class="ghost-button" type="button" data-i18n="button.clearRules">清除規則</button>
           </div>
 
           <div class="rule-builder">
             <div class="field-grid">
               <label>
-                <span>Target</span>
+                <span data-i18n="field.target">目標</span>
                 <select id="targetSelect">
-                  <option>Segment</option>
-                  <option>Character</option>
+                  <option value="Segment" data-i18n="option.segment">段落</option>
+                  <option value="Character" data-i18n="option.character">字元</option>
                 </select>
               </label>
               <label id="directionField">
-                <span>Direction</span>
+                <span data-i18n="field.direction">方向</span>
                 <select id="directionSelect">
-                  <option value="FromStart">From start</option>
-                  <option value="FromEnd">From end</option>
+                  <option value="FromStart" data-i18n="option.fromStart">從開頭</option>
+                  <option value="FromEnd" data-i18n="option.fromEnd">從結尾</option>
                 </select>
               </label>
               <label id="delimiterField">
-                <span>Delimiter</span>
+                <span data-i18n="field.delimiter">分隔符</span>
                 <input id="delimiterInput" type="text" value="-">
               </label>
               <label id="segmentField">
-                <span>Segment no.</span>
+                <span data-i18n="field.segmentNo">段落編號</span>
                 <input id="segmentInput" type="number" min="1" value="2">
               </label>
               <label id="charStartField" hidden>
-                <span>Char start</span>
+                <span data-i18n="field.charStart">字元起點</span>
                 <input id="charStartInput" type="number" min="1" value="1">
               </label>
               <label id="charLengthField" hidden>
-                <span>Char length</span>
+                <span data-i18n="field.charLength">字元長度</span>
                 <input id="charLengthInput" type="number" min="0" value="0">
               </label>
               <label>
-                <span>Value mode</span>
+                <span data-i18n="field.valueMode">值模式</span>
                 <select id="valueModeSelect">
-                  <option>Static</option>
-                  <option>List</option>
-                  <option>SeqUp</option>
-                  <option>SeqDown</option>
-                  <option>Delete</option>
+                  <option value="Static" data-i18n="option.static">固定值</option>
+                  <option value="List" data-i18n="option.list">清單</option>
+                  <option value="SeqUp" data-i18n="option.seqUp">遞增</option>
+                  <option value="SeqDown" data-i18n="option.seqDown">遞減</option>
+                  <option value="Delete" data-i18n="option.delete">刪除</option>
                 </select>
               </label>
               <label id="staticField">
-                <span>Static value</span>
+                <span data-i18n="field.staticValue">固定值</span>
                 <input id="staticInput" type="text" value="final">
               </label>
               <label id="seqStartField" hidden>
-                <span>Seq start</span>
+                <span data-i18n="field.seqStart">起始</span>
                 <input id="seqStartInput" type="number" value="1">
               </label>
               <label id="seqStepField" hidden>
-                <span>Step</span>
+                <span data-i18n="field.step">間距</span>
                 <input id="seqStepInput" type="number" min="1" value="1">
               </label>
               <label id="padField" hidden>
-                <span>Pad</span>
+                <span data-i18n="field.pad">補零</span>
                 <input id="padInput" type="number" min="0" value="3">
               </label>
             </div>
 
             <label id="listField" class="wide-field" hidden>
-              <span>Value list</span>
-              <textarea id="valueListInput" rows="5" placeholder="One value per row"></textarea>
+              <span data-i18n="field.valueList">值清單</span>
+              <textarea id="valueListInput" rows="5" data-i18n-placeholder="placeholder.valueList" placeholder="一列一個值"></textarea>
             </label>
 
             <div class="sample-strip">
-              <span>Sample</span>
+              <span data-i18n="label.sample">範例</span>
               <output id="sampleOutput">50-INDS-AT-52602_0.pdf</output>
             </div>
 
             <div class="action-row">
-              <button id="addRuleButton" class="primary-button" type="button">Add rule</button>
-              <button id="previewButton" type="button">Apply rules / preview</button>
+              <button id="addRuleButton" class="primary-button" type="button" data-i18n="button.addRule">新增規則</button>
+              <button id="previewButton" type="button" data-i18n="button.preview">套用規則 / 預覽</button>
             </div>
           </div>
 
           <ol id="ruleList" class="rule-list"></ol>
         </section>
 
-        <section class="panel preview-panel" aria-label="Preview">
+        <section class="panel preview-panel" aria-label="Preview" data-i18n-aria-label="preview.title">
           <div class="panel-header">
             <div>
-              <h2>Preview</h2>
-              <p id="previewSummary">No preview yet.</p>
+              <h2 data-i18n="preview.title">預覽</h2>
+              <p id="previewSummary">尚未產生預覽。</p>
             </div>
             <div class="action-row align-right">
-              <button id="resetTargetNamesButton" type="button">Use source names</button>
-              <button id="exportCsvButton" type="button">Export CSV</button>
-              <button id="importCsvButton" type="button">Import CSV</button>
-              <button id="executeButton" class="danger-button" type="button">Execute OK rows</button>
+              <button id="resetTargetNamesButton" type="button" data-i18n="button.useSourceNames">套用原檔名</button>
+              <button id="exportCsvButton" type="button" data-i18n="button.exportCsv">匯出 CSV</button>
+              <button id="importCsvButton" type="button" data-i18n="button.importCsv">匯入 CSV</button>
+              <button id="executeButton" class="danger-button" type="button" data-i18n="button.execute">執行 OK 列</button>
             </div>
             <input id="csvInput" type="file" accept=".csv,text/csv" hidden>
           </div>
 
           <div class="folder-tools">
             <label>
-              <span>Target folder label</span>
-              <input id="targetFolderInput" type="text" placeholder="Source folder">
+              <span data-i18n="field.targetFolderLabel">目標資料夾標籤</span>
+              <input id="targetFolderInput" type="text" data-i18n-placeholder="placeholder.sourceFolder" placeholder="來源資料夾">
             </label>
-            <button id="applyFolderSelectedButton" type="button">Apply to selected</button>
-            <button id="applyFolderAllButton" type="button">Apply to all</button>
+            <button id="applyFolderSelectedButton" type="button" data-i18n="button.applySelected">套用到選取</button>
+            <button id="applyFolderAllButton" type="button" data-i18n="button.applyAll">套用到全部</button>
+          </div>
+
+          <div class="safety-strip">
+            <div>
+              <strong data-i18n="safety.title">執行安全摘要</strong>
+              <p id="executionSummary">尚未產生預覽。</p>
+            </div>
+            <div class="status-legend" aria-label="Status legend" data-i18n-aria-label="safety.legend">
+              <span><i class="dot ok"></i><b data-i18n="safety.ok">可執行</b></span>
+              <span><i class="dot warn"></i><b data-i18n="safety.blocked">需處理</b></span>
+              <span><i class="dot error"></i><b data-i18n="safety.error">規則錯誤</b></span>
+            </div>
           </div>
 
           <div class="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th><span class="sr-only">Select</span></th>
-                  <th>#</th>
-                  <th>Action</th>
-                  <th>Source</th>
-                  <th>Target name</th>
-                  <th>Target folder</th>
-                  <th>Status</th>
+                  <th><span class="sr-only" data-i18n="table.select">選取</span></th>
+                  <th data-i18n="table.no">#</th>
+                  <th data-i18n="table.action">動作</th>
+                  <th data-i18n="table.source">來源</th>
+                  <th data-i18n="table.targetName">目標檔名</th>
+                  <th data-i18n="table.targetFolder">目標資料夾</th>
+                  <th data-i18n="table.status">狀態</th>
                 </tr>
               </thead>
               <tbody id="previewBody"></tbody>
@@ -206,8 +234,70 @@
         </section>
       </main>
 
+      <aside id="settingsPanel" class="settings-panel" aria-label="Settings" data-i18n-aria-label="settings.title" hidden>
+        <div class="settings-surface">
+          <div class="panel-header">
+            <div>
+              <h2 data-i18n="settings.title">設定</h2>
+              <p id="currentLookText" data-i18n="settings.current">目前外觀</p>
+            </div>
+            <button id="closeSettingsButton" class="ghost-button" type="button" data-i18n="settings.close">關閉</button>
+          </div>
+
+          <div class="settings-content">
+            <div class="field-grid compact">
+              <label>
+                <span data-i18n="settings.language">語言</span>
+                <select id="languageSelect"></select>
+              </label>
+              <label>
+                <span data-i18n="settings.template">模板</span>
+                <select id="templateSelect"></select>
+              </label>
+              <label>
+                <span data-i18n="settings.theme">主題</span>
+                <select id="themeSelect"></select>
+              </label>
+            </div>
+
+            <div class="pet-settings">
+              <h3 data-i18n="settings.pet">寵物助手</h3>
+              <label class="toggle-row">
+                <input id="petEnabledInput" type="checkbox">
+                <span data-i18n="settings.petEnabled">啟用寵物</span>
+              </label>
+              <label>
+                <span data-i18n="settings.petType">寵物種類</span>
+                <select id="petTypeSelect"></select>
+              </label>
+              <p class="hint" data-i18n="settings.petHint">寵物會在畫面上散步；可點擊互動，也能拖曳到不同位置。</p>
+            </div>
+
+            <div>
+              <h3 data-i18n="settings.preview">模板預覽</h3>
+              <div id="templateCards" class="template-cards"></div>
+            </div>
+
+            <div class="action-row">
+              <button id="applySettingsButton" class="primary-button" type="button" data-i18n="settings.apply">套用設定</button>
+              <button id="resetSettingsButton" type="button" data-i18n="settings.reset">恢復預設</button>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <div id="petLayer" class="pet-layer" hidden>
+        <button id="petCompanion" class="pet-companion" type="button" aria-live="polite">
+          <span class="pet-body">
+            <span class="pet-face"></span>
+            <span class="pet-extra"></span>
+          </span>
+          <span id="petBubble" class="pet-bubble"></span>
+        </button>
+      </div>
+
       <footer class="statusbar">
-        <span id="statusText">Ready.</span>
+        <span id="statusText">就緒。</span>
       </footer>
     </div>
 

@@ -1,4 +1,4 @@
-const CACHE_NAME = "batch-file-renamer-v1";
+const CACHE_NAME = "batch-file-renamer-v2";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -6,7 +6,11 @@ const APP_SHELL = [
   "./assets/style.css",
   "./assets/app.js",
   "./assets/rules.js",
-  "./assets/icon.svg"
+  "./assets/settings.js",
+  "./assets/icon.svg",
+  "./assets/backgrounds/material.jpg",
+  "./assets/backgrounds/anime.jpg",
+  "./assets/backgrounds/cyber.jpg"
 ];
 
 self.addEventListener("install", (event) => {

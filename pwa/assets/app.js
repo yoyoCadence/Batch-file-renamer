@@ -5,6 +5,19 @@ import {
   rowsToCsv,
   validateRows
 } from "./rules.js";
+import {
+  DEFAULT_SETTINGS,
+  LANGUAGES,
+  PETS,
+  TEMPLATES,
+  THEMES,
+  applyAppearance,
+  applyTranslations,
+  loadSettings,
+  normalizeSettings,
+  saveSettings,
+  t
+} from "./settings.js";
 
 const state = {
   mode: "rename",
@@ -15,7 +28,21 @@ const state = {
   rows: [],
   selectedRows: new Set(),
   sourceDirectoryHandle: null,
-  installPrompt: null
+  installPrompt: null,
+  settings: loadSettings(),
+  pet: {
+    x: 32,
+    y: 120,
+    vx: 0.035,
+    vy: 0.026,
+    dragging: false,
+    dragOffsetX: 0,
+    dragOffsetY: 0,
+    frame: null,
+    bubbleTimer: null,
+    lastTime: 0,
+    justDragged: false
+  }
 };
 
 const hasFileSystemAccess = "showDirectoryPicker" in window && "showOpenFilePicker" in window;
@@ -23,7 +50,23 @@ const $ = (id) => document.getElementById(id);
 
 const els = {
   supportBadge: $("supportBadge"),
+  supportDetail: $("supportDetail"),
   installButton: $("installButton"),
+  openSettingsButton: $("openSettingsButton"),
+  settingsPanel: $("settingsPanel"),
+  closeSettingsButton: $("closeSettingsButton"),
+  applySettingsButton: $("applySettingsButton"),
+  resetSettingsButton: $("resetSettingsButton"),
+  languageSelect: $("languageSelect"),
+  templateSelect: $("templateSelect"),
+  themeSelect: $("themeSelect"),
+  petEnabledInput: $("petEnabledInput"),
+  petTypeSelect: $("petTypeSelect"),
+  templateCards: $("templateCards"),
+  currentLookText: $("currentLookText"),
+  petLayer: $("petLayer"),
+  petCompanion: $("petCompanion"),
+  petBubble: $("petBubble"),
   fileSummary: $("fileSummary"),
   renameSetup: $("renameSetup"),
   copySetup: $("copySetup"),
@@ -66,6 +109,7 @@ const els = {
   previewButton: $("previewButton"),
   ruleList: $("ruleList"),
   previewSummary: $("previewSummary"),
+  executionSummary: $("executionSummary"),
   resetTargetNamesButton: $("resetTargetNamesButton"),
   exportCsvButton: $("exportCsvButton"),
   importCsvButton: $("importCsvButton"),
@@ -81,11 +125,14 @@ const els = {
 init();
 
 function init() {
+  populateSettingsControls();
+  applyCurrentSettings();
+
   document.querySelectorAll("input[name='mode']").forEach((input) => {
     input.addEventListener("change", () => {
       state.mode = input.value;
       updateMode();
-      setStatus(`${titleCase(state.mode)} mode selected.`);
+      setStatusKey("status.modeSelected", { mode: tKey(`mode.${state.mode}`) });
     });
   });
 
@@ -116,7 +163,7 @@ function init() {
   els.clearRulesButton.addEventListener("click", () => {
     state.rules = [];
     renderRules();
-    setStatus("Rules cleared.");
+    setStatusKey("status.rulesCleared");
   });
   els.previewButton.addEventListener("click", previewRules);
   els.resetTargetNamesButton.addEventListener("click", resetTargetNames);
@@ -126,11 +173,27 @@ function init() {
   els.executeButton.addEventListener("click", executeRows);
   els.applyFolderSelectedButton.addEventListener("click", () => applyFolderLabel("selected"));
   els.applyFolderAllButton.addEventListener("click", () => applyFolderLabel("all"));
+  els.openSettingsButton.addEventListener("click", openSettings);
+  els.closeSettingsButton.addEventListener("click", closeSettings);
+  els.applySettingsButton.addEventListener("click", applySettingsFromForm);
+  els.resetSettingsButton.addEventListener("click", resetSettings);
+  [els.languageSelect, els.templateSelect, els.themeSelect].forEach((control) => {
+    control.addEventListener("change", renderTemplateCards);
+  });
+  els.petEnabledInput.addEventListener("change", () => {
+    els.petTypeSelect.disabled = !els.petEnabledInput.checked;
+  });
+  els.petCompanion.addEventListener("pointerdown", startPetDrag);
+  els.petCompanion.addEventListener("click", reactToPet);
 
   window.addEventListener("beforeinstallprompt", (event) => {
     event.preventDefault();
     state.installPrompt = event;
     els.installButton.hidden = false;
+  });
+  window.addEventListener("resize", () => {
+    clampPetPosition();
+    renderPetPosition();
   });
   els.installButton.addEventListener("click", async () => {
     if (!state.installPrompt) {
@@ -144,7 +207,7 @@ function init() {
 
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("./service-worker.js").catch(() => {
-      setStatus("Service worker registration failed. The app still runs online.");
+      setStatusKey("status.swFailed");
     });
   }
 
@@ -154,12 +217,116 @@ function init() {
   renderAll();
 }
 
+function populateSettingsControls() {
+  fillSelect(els.languageSelect, LANGUAGES, (item) => item.label);
+  fillSelect(els.templateSelect, TEMPLATES, (item) => tKey(item.labelKey));
+  fillSelect(els.themeSelect, THEMES, (item) => tKey(item.labelKey));
+  fillSelect(els.petTypeSelect, PETS, (item) => tKey(item.labelKey));
+  renderTemplateCards();
+}
+
+function fillSelect(select, items, labelFor) {
+  select.innerHTML = "";
+  for (const item of items) {
+    const option = document.createElement("option");
+    option.value = item.id;
+    option.textContent = labelFor(item);
+    select.append(option);
+  }
+}
+
+function applyCurrentSettings() {
+  state.settings = normalizeSettings(state.settings);
+  applyAppearance(state.settings);
+  applyTranslations(document, state.settings.language);
+  els.languageSelect.value = state.settings.language;
+  els.templateSelect.value = state.settings.template;
+  els.themeSelect.value = state.settings.theme;
+  els.petEnabledInput.checked = state.settings.petEnabled;
+  els.petTypeSelect.value = state.settings.petType;
+  els.petTypeSelect.disabled = !state.settings.petEnabled;
+  populateSettingsLabels();
+  updatePet();
+  updateSupportBadge();
+  renderAll();
+  setStatusKey("status.ready");
+}
+
+function populateSettingsLabels() {
+  fillSelect(els.templateSelect, TEMPLATES, (item) => tKey(item.labelKey));
+  fillSelect(els.themeSelect, THEMES, (item) => tKey(item.labelKey));
+  fillSelect(els.petTypeSelect, PETS, (item) => tKey(item.labelKey));
+  els.languageSelect.value = state.settings.language;
+  els.templateSelect.value = state.settings.template;
+  els.themeSelect.value = state.settings.theme;
+  els.petEnabledInput.checked = state.settings.petEnabled;
+  els.petTypeSelect.value = state.settings.petType;
+  els.petTypeSelect.disabled = !state.settings.petEnabled;
+  renderTemplateCards();
+  const template = TEMPLATES.find((item) => item.id === state.settings.template);
+  const theme = THEMES.find((item) => item.id === state.settings.theme);
+  els.currentLookText.textContent = `${tKey(template?.labelKey || "template.material")} / ${tKey(theme?.labelKey || "theme.sage")}`;
+}
+
+function openSettings() {
+  els.languageSelect.value = state.settings.language;
+  els.templateSelect.value = state.settings.template;
+  els.themeSelect.value = state.settings.theme;
+  els.petEnabledInput.checked = state.settings.petEnabled;
+  els.petTypeSelect.value = state.settings.petType;
+  els.petTypeSelect.disabled = !state.settings.petEnabled;
+  renderTemplateCards();
+  els.settingsPanel.hidden = false;
+}
+
+function closeSettings() {
+  els.settingsPanel.hidden = true;
+}
+
+function applySettingsFromForm() {
+  state.settings = saveSettings({
+    language: els.languageSelect.value,
+    template: els.templateSelect.value,
+    theme: els.themeSelect.value,
+    petEnabled: els.petEnabledInput.checked,
+    petType: els.petTypeSelect.value
+  });
+  applyCurrentSettings();
+  setStatusKey("status.settingsApplied");
+}
+
+function resetSettings() {
+  state.settings = saveSettings(DEFAULT_SETTINGS);
+  applyCurrentSettings();
+  setStatusKey("status.settingsReset");
+}
+
+function renderTemplateCards() {
+  const selectedTemplate = els.templateSelect.value || state.settings.template;
+  els.templateCards.innerHTML = "";
+  for (const template of TEMPLATES) {
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "template-card";
+    card.dataset.active = String(template.id === selectedTemplate);
+    card.style.backgroundImage = `linear-gradient(180deg, rgb(0 0 0 / 0.06), rgb(0 0 0 / 0.38)), url("${template.background}")`;
+    card.innerHTML = `<strong>${escapeHtml(tKey(template.labelKey))}</strong><span>${escapeHtml(tKey(template.descriptionKey))}</span>`;
+    card.addEventListener("click", () => {
+      els.templateSelect.value = template.id;
+      renderTemplateCards();
+    });
+    els.templateCards.append(card);
+  }
+}
+
 function updateSupportBadge() {
   if (hasFileSystemAccess) {
-    els.supportBadge.textContent = "Direct file execution available";
+    els.supportBadge.textContent = tKey("support.direct");
+    els.supportDetail.textContent = tKey("guide.supportDirect");
     els.supportBadge.dataset.state = "ok";
   } else {
-    els.supportBadge.textContent = "Preview and CSV mode";
+    els.supportBadge.textContent = tKey("support.limited");
+    els.supportDetail.textContent = tKey("guide.supportLimited");
     els.supportBadge.dataset.state = "limited";
   }
 }
@@ -172,7 +339,7 @@ function updateMode() {
 
 async function pickSourceFolder() {
   if (!hasFileSystemAccess) {
-    setStatus("Folder permissions need Chromium. Use Add files for preview on this browser.");
+    setStatusKey("status.folderNeedsChromium");
     els.fileInput.click();
     return;
   }
@@ -202,10 +369,10 @@ async function pickSourceFolder() {
     state.rows = [];
     state.selectedRows.clear();
     renderAll();
-    setStatus(`Loaded ${state.sources.length} file(s) from ${directoryHandle.name}.`);
+    setStatusKey("status.loadedFromFolder", { count: state.sources.length, name: directoryHandle.name });
   } catch (error) {
     if (error.name !== "AbortError") {
-      setStatus(`Folder selection failed: ${error.message}`);
+      setStatusKey("status.folderSelectionFailed", { message: error.message });
     }
   }
 }
@@ -231,7 +398,7 @@ function addPreviewFiles() {
   state.selectedRows.clear();
   els.fileInput.value = "";
   renderAll();
-  setStatus(`Loaded ${state.sources.length} preview file(s).`);
+  setStatusKey("status.loadedPreviewFiles", { count: state.sources.length });
 }
 
 function clearSources() {
@@ -240,7 +407,7 @@ function clearSources() {
   state.rows = [];
   state.selectedRows.clear();
   renderAll();
-  setStatus("Source files cleared.");
+  setStatusKey("status.sourceFilesCleared");
 }
 
 async function pickTemplate() {
@@ -262,10 +429,10 @@ async function pickTemplate() {
       }
     };
     renderAll();
-    setStatus(`Template selected: ${file.name}.`);
+    setStatusKey("status.templateSelected", { name: file.name });
   } catch (error) {
     if (error.name !== "AbortError") {
-      setStatus(`Template selection failed: ${error.message}`);
+      setStatusKey("status.templateSelectionFailed", { message: error.message });
     }
   }
 }
@@ -286,12 +453,12 @@ function addTemplateFromInput() {
   };
   els.templateInput.value = "";
   renderAll();
-  setStatus(`Template selected for preview: ${file.name}.`);
+  setStatusKey("status.templatePreviewSelected", { name: file.name });
 }
 
 async function pickOutputFolder() {
   if (!hasFileSystemAccess) {
-    setStatus("Output folder writing needs Chromium's File System Access API.");
+    setStatusKey("status.outputNeedsChromium");
     return;
   }
 
@@ -302,10 +469,10 @@ async function pickOutputFolder() {
       handle: directoryHandle
     };
     renderAll();
-    setStatus(`Output folder selected: ${directoryHandle.name}.`);
+    setStatusKey("status.outputSelected", { name: directoryHandle.name });
   } catch (error) {
     if (error.name !== "AbortError") {
-      setStatus(`Output folder selection failed: ${error.message}`);
+      setStatusKey("status.outputSelectionFailed", { message: error.message });
     }
   }
 }
@@ -333,7 +500,7 @@ function addRule() {
   state.rules.push(rule);
   renderRules();
   renderSample();
-  setStatus(`Rule added. Total rules: ${state.rules.length}.`);
+  setStatusKey("status.ruleAdded", { count: state.rules.length });
 }
 
 function readRuleForm() {
@@ -374,7 +541,7 @@ async function previewRules() {
   state.rows = await revalidateWithFilesystem(result.rows);
   state.selectedRows.clear();
   renderPreview();
-  setStatus(`Preview generated: ${state.rows.length} row(s). Target names are editable.`);
+  setStatusKey("status.previewGenerated", { count: state.rows.length });
 }
 
 async function revalidateWithFilesystem(rows) {
@@ -404,13 +571,13 @@ function resetTargetNames() {
     status: "OK"
   })));
   renderPreview();
-  setStatus("Target names reset to source names.");
+  setStatusKey("status.targetNamesReset");
 }
 
 function applyFolderLabel(scope) {
   const label = els.targetFolderInput.value.trim();
   if (!label) {
-    setStatus("Target folder label is empty.");
+    setStatusKey("status.targetFolderEmpty");
     return;
   }
 
@@ -427,12 +594,12 @@ function applyFolderLabel(scope) {
     };
   }));
   renderPreview();
-  setStatus(scope === "selected" ? "Target folder applied to selected rows." : "Target folder applied to all rows.");
+  setStatusKey(scope === "selected" ? "status.folderAppliedSelected" : "status.folderAppliedAll");
 }
 
 async function exportCsv() {
   if (state.rows.length === 0) {
-    setStatus("No preview to export.");
+    setStatusKey("status.noPreviewExport");
     return;
   }
   const csv = rowsToCsv(state.rows);
@@ -447,7 +614,7 @@ async function exportCsv() {
       const writable = await handle.createWritable();
       await writable.write(blob);
       await writable.close();
-      setStatus("Exported CSV.");
+      setStatusKey("status.exportedCsv");
       return;
     } catch (error) {
       if (error.name === "AbortError") {
@@ -457,7 +624,7 @@ async function exportCsv() {
   }
 
   downloadBlob(blob, "rename_preview.csv");
-  setStatus("Downloaded CSV.");
+  setStatusKey("status.downloadedCsv");
 }
 
 async function importCsv() {
@@ -470,9 +637,9 @@ async function importCsv() {
     state.rows = validateForApp(parsePreviewCsv(text));
     state.selectedRows.clear();
     renderPreview();
-    setStatus(`Imported ${state.rows.length} CSV row(s).`);
+    setStatusKey("status.importedCsv", { count: state.rows.length });
   } catch (error) {
-    setStatus(`Import failed: ${error.message}`);
+    setStatusKey("status.importFailed", { message: error.message });
   } finally {
     els.csvInput.value = "";
   }
@@ -483,10 +650,10 @@ async function executeRows() {
   renderPreview();
   const okRows = state.rows.filter((row) => row.status === "OK");
   if (okRows.length === 0) {
-    setStatus("No OK rows to execute.");
+    setStatusKey("status.noOkRows");
     return;
   }
-  const confirmed = window.confirm(`Execute ${okRows.length} OK row(s)? Warning and error rows are skipped.`);
+  const confirmed = window.confirm(tKey("status.confirmExecute", { count: okRows.length }));
   if (!confirmed) {
     return;
   }
@@ -508,7 +675,7 @@ async function executeRows() {
     }
     renderPreview();
   }
-  setStatus(`Execution done. Success: ${done}, Failed: ${failed}.`);
+  setStatusKey("status.executionDone", { done, failed });
 }
 
 async function executeCopyRow(row) {
@@ -596,18 +763,18 @@ function renderFileSummary() {
     els.outputFolderName.value = state.outputDirectory?.name || "";
     const count = Number.parseInt(els.copyCount.value, 10) || 0;
     els.fileSummary.textContent = state.template
-      ? `Template ready. Output count: ${count}.`
-      : "Select a template file and output folder.";
+      ? tKey("file.copyReady", { count })
+      : tKey("file.copyPrompt");
     return;
   }
 
   els.fileSummary.textContent = state.sources.length
-    ? `${state.sources.length} source file(s) loaded.`
-    : "No files loaded.";
+    ? tKey("file.loaded", { count: state.sources.length })
+    : tKey("file.none");
 
   els.sourceList.innerHTML = "";
   if (state.sources.length === 0) {
-    els.sourceList.textContent = "No source files selected.";
+    els.sourceList.textContent = tKey("empty.sources");
     return;
   }
   const fragment = document.createDocumentFragment();
@@ -618,7 +785,7 @@ function renderFileSummary() {
   }
   if (state.sources.length > 18) {
     const item = document.createElement("span");
-    item.textContent = `+${state.sources.length - 18} more`;
+    item.textContent = tKey("file.more", { count: state.sources.length - 18 });
     fragment.append(item);
   }
   els.sourceList.append(fragment);
@@ -629,7 +796,7 @@ function renderRules() {
   if (state.rules.length === 0) {
     const empty = document.createElement("li");
     empty.className = "empty-list";
-    empty.textContent = "No rules yet.";
+    empty.textContent = tKey("empty.rules");
     els.ruleList.append(empty);
     return;
   }
@@ -641,11 +808,11 @@ function renderRules() {
     const remove = document.createElement("button");
     remove.type = "button";
     remove.className = "icon-button";
-    remove.textContent = "Remove";
+    remove.textContent = tKey("button.removeRule");
     remove.addEventListener("click", () => {
       state.rules.splice(index, 1);
       renderRules();
-      setStatus("Rule removed.");
+      setStatusKey("status.ruleRemoved");
     });
     item.append(summary, remove);
     els.ruleList.append(item);
@@ -655,13 +822,14 @@ function renderRules() {
 function renderPreview() {
   els.previewBody.innerHTML = "";
   const counts = summarizeRows();
+  renderExecutionSummary(counts);
   els.previewSummary.textContent = state.rows.length
-    ? `${state.rows.length} row(s): ${counts.ok} OK, ${counts.blocked} blocked.`
-    : "No preview yet.";
+    ? tKey("preview.summary", { total: state.rows.length, ok: counts.ok, blocked: counts.blocked })
+    : tKey("preview.none");
 
   if (state.rows.length === 0) {
     const row = document.createElement("tr");
-    row.innerHTML = `<td colspan="7" class="empty-table">Build rules, then generate a preview.</td>`;
+    row.innerHTML = `<td colspan="7" class="empty-table">${escapeHtml(tKey("empty.preview"))}</td>`;
     els.previewBody.append(row);
     return;
   }
@@ -706,7 +874,7 @@ function renderPreview() {
     tr.append(
       cellWith(selected),
       textCell(row.no),
-      textCell(row.action),
+      textCell(tKey(`action.${row.action}`)),
       textCell(row.sourceName),
       cellWith(targetName),
       cellWith(targetFolder),
@@ -714,6 +882,12 @@ function renderPreview() {
     );
     els.previewBody.append(tr);
   }
+}
+
+function renderExecutionSummary(counts = summarizeRows()) {
+  els.executionSummary.textContent = state.rows.length
+    ? tKey("safety.summary", { ok: counts.ok, blocked: counts.blocked, error: counts.error })
+    : tKey("safety.none");
 }
 
 function updateRow(id, patch) {
@@ -741,6 +915,138 @@ function applyExecutionLimits(rows) {
     }
     return row;
   });
+}
+
+function updatePet() {
+  const enabled = state.settings.petEnabled;
+  els.petLayer.hidden = !enabled;
+  els.petCompanion.dataset.pet = state.settings.petType;
+  els.petCompanion.setAttribute("aria-label", tKey(state.settings.petType ? `pet.${state.settings.petType}` : "settings.pet"));
+  if (enabled) {
+    clampPetPosition();
+    renderPetPosition();
+    startPetLoop();
+  } else if (state.pet.frame) {
+    cancelAnimationFrame(state.pet.frame);
+    state.pet.frame = null;
+  }
+}
+
+function startPetLoop() {
+  if (state.pet.frame) {
+    return;
+  }
+  state.pet.lastTime = performance.now();
+  state.pet.frame = requestAnimationFrame(tickPet);
+}
+
+function tickPet(time) {
+  state.pet.frame = null;
+  if (!state.settings.petEnabled) {
+    return;
+  }
+  const delta = Math.min(48, time - state.pet.lastTime);
+  state.pet.lastTime = time;
+  if (!state.pet.dragging) {
+    state.pet.x += state.pet.vx * delta;
+    state.pet.y += state.pet.vy * delta;
+    bouncePet();
+    renderPetPosition();
+  }
+  state.pet.frame = requestAnimationFrame(tickPet);
+}
+
+function bouncePet() {
+  const bounds = petBounds();
+  if (state.pet.x <= bounds.minX || state.pet.x >= bounds.maxX) {
+    state.pet.vx *= -1;
+  }
+  if (state.pet.y <= bounds.minY || state.pet.y >= bounds.maxY) {
+    state.pet.vy *= -1;
+  }
+  clampPetPosition();
+}
+
+function clampPetPosition() {
+  const bounds = petBounds();
+  state.pet.x = Math.max(bounds.minX, Math.min(bounds.maxX, state.pet.x));
+  state.pet.y = Math.max(bounds.minY, Math.min(bounds.maxY, state.pet.y));
+}
+
+function petBounds() {
+  const size = 92;
+  return {
+    minX: 10,
+    minY: 92,
+    maxX: Math.max(10, window.innerWidth - size - 10),
+    maxY: Math.max(110, window.innerHeight - size - 52)
+  };
+}
+
+function renderPetPosition() {
+  const direction = state.pet.vx < 0 ? -1 : 1;
+  els.petCompanion.style.transform = `translate(${state.pet.x}px, ${state.pet.y}px) scaleX(${direction})`;
+  els.petBubble.style.transform = `scaleX(${direction})`;
+}
+
+function startPetDrag(event) {
+  if (!state.settings.petEnabled) {
+    return;
+  }
+  event.preventDefault();
+  state.pet.dragging = true;
+  state.pet.justDragged = false;
+  const rect = els.petCompanion.getBoundingClientRect();
+  state.pet.dragOffsetX = event.clientX - rect.left;
+  state.pet.dragOffsetY = event.clientY - rect.top;
+  els.petCompanion.classList.add("is-held");
+  els.petCompanion.setPointerCapture(event.pointerId);
+  els.petCompanion.addEventListener("pointermove", movePetDrag);
+  els.petCompanion.addEventListener("pointerup", endPetDrag, { once: true });
+  els.petCompanion.addEventListener("pointercancel", endPetDrag, { once: true });
+}
+
+function movePetDrag(event) {
+  if (!state.pet.dragging) {
+    return;
+  }
+  state.pet.justDragged = true;
+  state.pet.x = event.clientX - state.pet.dragOffsetX;
+  state.pet.y = event.clientY - state.pet.dragOffsetY;
+  clampPetPosition();
+  renderPetPosition();
+}
+
+function endPetDrag(event) {
+  state.pet.dragging = false;
+  state.pet.vx = (Math.random() > 0.5 ? 1 : -1) * (0.025 + Math.random() * 0.025);
+  state.pet.vy = (Math.random() > 0.5 ? 1 : -1) * (0.018 + Math.random() * 0.02);
+  els.petCompanion.classList.remove("is-held");
+  els.petCompanion.removeEventListener("pointermove", movePetDrag);
+  try {
+    els.petCompanion.releasePointerCapture(event.pointerId);
+  } catch {
+    // Pointer capture may already be released by the browser.
+  }
+  window.setTimeout(() => {
+    state.pet.justDragged = false;
+  }, 120);
+}
+
+function reactToPet() {
+  if (!state.settings.petEnabled || state.pet.justDragged) {
+    return;
+  }
+  els.petCompanion.classList.remove("is-reacting");
+  void els.petCompanion.offsetWidth;
+  els.petCompanion.classList.add("is-reacting");
+  els.petBubble.textContent = tKey(`pet.reaction.${state.settings.petType}`);
+  els.petBubble.dataset.show = "true";
+  clearTimeout(state.pet.bubbleTimer);
+  state.pet.bubbleTimer = window.setTimeout(() => {
+    els.petBubble.dataset.show = "false";
+    els.petCompanion.classList.remove("is-reacting");
+  }, 1800);
 }
 
 function renderSample() {
@@ -776,25 +1082,37 @@ function summarizeRows() {
   return state.rows.reduce((summary, row) => {
     if (row.status === "OK") {
       summary.ok += 1;
+    } else if (String(row.status || "").startsWith("Error:")) {
+      summary.error += 1;
+      summary.blocked += 1;
     } else {
       summary.blocked += 1;
     }
     return summary;
-  }, { ok: 0, blocked: 0 });
+  }, { ok: 0, blocked: 0, error: 0 });
 }
 
 function describeRule(rule) {
   const target = rule.target === "Segment"
-    ? `Delimiter "${rule.delimiter}", segment ${rule.segmentNo}, ${rule.fromEnd ? "from end" : "from start"}`
-    : `Char ${rule.charStart}, length ${rule.charLength}`;
+    ? tKey("desc.segment", {
+      delimiter: rule.delimiter,
+      segmentNo: rule.segmentNo,
+      direction: tKey(rule.fromEnd ? "desc.fromEnd" : "desc.fromStart")
+    })
+    : tKey("desc.character", { charStart: rule.charStart, charLength: rule.charLength });
   const value = rule.valueMode === "Static"
-    ? `Static "${rule.staticValue}"`
+    ? tKey("desc.static", { value: rule.staticValue })
     : rule.valueMode === "List"
-      ? "Value list"
+      ? tKey("desc.list")
       : rule.valueMode === "Delete"
-        ? "Delete"
-        : `${rule.valueMode} start ${rule.seqStart}, step ${rule.seqStep}, pad ${rule.pad}`;
-  return `${target}. ${value}.`;
+        ? tKey("desc.delete")
+        : tKey("desc.sequence", {
+          mode: tKey(`option.${rule.valueMode === "SeqUp" ? "seqUp" : "seqDown"}`),
+          start: rule.seqStart,
+          step: rule.seqStep,
+          pad: rule.pad
+        });
+  return `${target} ${value}`;
 }
 
 function statusKind(status) {
@@ -820,7 +1138,7 @@ function statusCell(status) {
   const td = document.createElement("td");
   const badge = document.createElement("span");
   badge.className = `status-pill ${statusKind(status)}`;
-  badge.textContent = status;
+  badge.textContent = translateStatus(status);
   td.append(badge);
   return td;
 }
@@ -846,14 +1164,26 @@ function setStatus(message) {
   els.statusText.textContent = message;
 }
 
+function setStatusKey(key, params = {}) {
+  setStatus(tKey(key, params));
+}
+
+function tKey(key, params = {}) {
+  return t(state.settings.language, key, params);
+}
+
+function translateStatus(status) {
+  const text = String(status ?? "");
+  if (text.startsWith("Error:")) {
+    return `${tKey("status.error")}: ${text.slice("Error:".length).trim()}`;
+  }
+  return tKey(`status.${text}`);
+}
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
-}
-
-function titleCase(value) {
-  return value.slice(0, 1).toUpperCase() + value.slice(1);
 }
