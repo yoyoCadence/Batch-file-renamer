@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Batch File Renamer">
+  <rect width="128" height="128" rx="24" fill="#263238"/>
+  <path d="M32 30h42l18 18v50H32z" fill="#f7faf9"/>
+  <path d="M74 30v18h18" fill="#d7e2df"/>
+  <path d="M45 68h38M45 82h26" stroke="#263238" stroke-width="8" stroke-linecap="round"/>
+  <path d="M28 96h72" stroke="#5f7f72" stroke-width="8" stroke-linecap="round"/>
+</svg>
