@@ -7,8 +7,11 @@ Use this file as the lightweight task board for this project unless the project 
 ## In Progress
 
 - [ ] T014 - Add GitHub Pages deployment workflow and publish the PWA.
-  - Workflow file is implemented and pushed to `main` in commit `486a804`.
-  - Pending: confirm the GitHub Pages deployment run and published URL after GitHub CLI / Actions access is available.
+  - Workflow file is implemented and pushed to `main`.
+  - Commit `9683532` changed `actions/configure-pages@v5` to use `enablement: true`.
+  - Current blocker: GitHub Actions can run tests, but the repository Pages site has not been created yet.
+  - Latest failure: `Setup Pages` cannot create the Pages site because the available `GITHUB_TOKEN` / PAT is not allowed to create Pages resources.
+  - Required next step: enable GitHub Pages in repository Settings using GitHub Actions as the source, or run the Pages creation API from a GitHub login/token with Pages/admin permission. Then rerun the `Deploy PWA to GitHub Pages` workflow.
 
 ## Backlog
 
