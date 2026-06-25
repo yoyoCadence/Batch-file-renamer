@@ -7,7 +7,8 @@ Use this file as the lightweight task board for this project unless the project 
 ## In Progress
 
 - [ ] T014 - Add GitHub Pages deployment workflow and publish the PWA.
-  - Workflow file is implemented locally. Pending: commit, push, and confirm the GitHub Pages deployment run.
+  - Workflow file is implemented and pushed to `main` in commit `486a804`.
+  - Pending: confirm the GitHub Pages deployment run and published URL after GitHub CLI / Actions access is available.
 
 ## Backlog
 
