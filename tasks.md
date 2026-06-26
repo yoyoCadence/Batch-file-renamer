@@ -39,3 +39,16 @@ Use this file as the lightweight task board for this project unless the project 
   - Implemented workflow guidance, support detail text, execution safety summary, and status legend.
   - Implemented persistent language, visual template, theme, and pet settings.
   - Covered settings, translations, generated backgrounds, service worker cache entries, pet hooks, and audit UI hooks in automated tests.
+- [x] T018 - Improve settings, mode, preview, and copy/rename UX based on screenshot review.
+  - Settings now apply immediately without a confirmation button and close when clicking outside the drawer.
+  - Default appearance is Anime Desk with Sakura Soft.
+  - Preview generation moved into the Preview panel and uses the workflow label "Check preview".
+  - Rename/copy mode controls now have explanatory tooltips, and switching mode or changing inputs resets stale preview rows.
+  - Copy mode now has a clear action and output-location selection from the preview area.
+- [x] T019 - Replace simple-only pets with generated animated mascot assets.
+  - Added generated detailed mascot sprites for five pets, each with idle, hop, cheer, stretch, spin, and panic-held states.
+  - Simple geometric pets remain available as a separate settings category.
+  - Pet actions now trigger at random intervals with reasonable durations, and dragging switches to the panic-held sprite.
+- [x] T020 - Refresh README for the current deployed PWA.
+  - Removed starter-template instructions.
+  - Added the deployed GitHub Pages URL, current features, browser notes, local run command, tests, and deployment notes.

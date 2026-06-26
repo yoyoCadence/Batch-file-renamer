@@ -21,16 +21,28 @@ test("PWA files contain the expected settings and appearance hooks", async () =>
   assert.match(index, /id="petEnabledInput"/);
   assert.match(index, /id="petTypeSelect"/);
   assert.match(index, /id="petCompanion"/);
+  assert.match(index, /id="petImage"/);
   assert.match(index, /class="[^"]*\bguide-panel\b[^"]*"/);
   assert.match(index, /id="executionSummary"/);
   assert.match(index, /class="[^"]*\bstatus-legend\b[^"]*"/);
   assert.match(index, /data-i18n="settings.open"/);
+  assert.doesNotMatch(index, /id="applySettingsButton"/);
+  assert.match(index, /id="pickPreviewOutputFolderButton"/);
+  assert.match(index, /id="clearCopySetupButton"/);
+  assert.match(index, /data-i18n-title="tooltip.modeRename"/);
 
   const css = await readFile("pwa/assets/style.css", "utf8");
   assert.match(css, /body\[data-template="anime"\]/);
   assert.match(css, /body\[data-template="cyber"\]/);
   assert.match(css, /body\[data-theme="sakura"\]/);
   assert.match(css, /backgrounds\/material\.jpg/);
+  assert.match(css, /\.flow-button/);
+  assert.match(css, /\.pet-image/);
+  assert.match(css, /\[data-action="panic-held"\]/);
+  assert.match(css, /@keyframes pet-hop/);
+  assert.match(css, /@keyframes pet-cheer/);
+  assert.match(css, /@keyframes pet-stretch/);
+  assert.match(css, /@keyframes pet-spin/);
   assert.match(css, /\.pet-companion\[data-pet="folderling"\]/);
   assert.match(css, /\.pet-companion\[data-pet="pixelplant"\]/);
   assert.match(css, /@keyframes pet-held/);
@@ -41,6 +53,9 @@ test("PWA files contain the expected settings and appearance hooks", async () =>
   assert.match(app, /startPetDrag/);
   assert.match(app, /movePetDrag/);
   assert.match(app, /classList\.add\("is-held"\)/);
+  assert.match(app, /PET_RANDOM_ACTIONS/);
+  assert.match(app, /panic-held/);
+  assert.match(app, /scheduleNextPetAction/);
 });
 
 test("generated background assets exist and are non-empty", async () => {
@@ -54,13 +69,27 @@ test("generated background assets exist and are non-empty", async () => {
   }
 });
 
+test("generated pet action assets exist and are transparent pngs", async () => {
+  const pets = ["folderling-deluxe", "staplebot-deluxe", "papersprite-deluxe", "archivecube-deluxe", "pixelplant-deluxe"];
+  const actions = ["idle", "hop", "cheer", "stretch", "spin", "panic-held"];
+  for (const pet of pets) {
+    for (const action of actions) {
+      const path = `pwa/assets/pets/${pet}-${action}.png`;
+      const info = await stat(path);
+      assert.ok(info.size > 20_000, `${path} should be a generated raster sprite`);
+    }
+  }
+});
+
 test("service worker caches all project-bound runtime assets", async () => {
   const worker = await readFile("pwa/service-worker.js", "utf8");
   for (const asset of [
     "./assets/settings.js",
     "./assets/backgrounds/material.jpg",
     "./assets/backgrounds/anime.jpg",
-    "./assets/backgrounds/cyber.jpg"
+    "./assets/backgrounds/cyber.jpg",
+    "./assets/pets/folderling-deluxe-panic-held.png",
+    "./assets/pets/pixelplant-deluxe-spin.png"
   ]) {
     assert.match(worker, new RegExp(asset.replace(/[./]/g, "\\$&")));
   }

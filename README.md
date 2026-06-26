@@ -1,42 +1,25 @@
-# 新專案啟動步驟
-
-1. 複製整個 `starter 模板` 資料夾，改成新專案名稱
-2. 用 VS Code 開啟該資料夾
-3. 呼叫 Claude Code 或 Codex，貼上你的新專案描述
-4. 請 agent 先更新：
-   - `AGENTS.md` 的 **Section 0: Project Context**
-   - `tasks.md` 的初始任務
-5. 確認內容合理後，再開始第一個實作任務
-
----
-
-## 建議啟動提示詞
-
-```text
-請先不要實作。根據以下描述，更新 AGENTS.md 的 Section 0，並建立或更新 tasks.md 的初始任務清單。若資訊不足，先問我最多 3 個問題。
-
-專案描述：
-...
-```
-
----
-
-## Section 0 整理範例
-
-```
-- Project name: MyApp
-- Project goal: Help small teams track paid meal orders
-- Target users: Office admins and coworkers
-- Tech stack: Next.js + Supabase + TypeScript
-- High-risk areas: auth flow, DB schema, deployment config
-- Architecture constraints: server components only, no client-side fetch
-- Verification commands: npm test, npm run lint
-```
-
-確認後就可以說「開始第一個任務」。
 # Batch File Renamer PWA
 
-This project rebuilds the legacy PowerShell Windows Forms batch renamer as a static PWA.
+Preview-first batch rename and template-copy tool rebuilt from the legacy PowerShell utility as a static PWA.
+
+## Live App
+
+https://yoyocadence.github.io/Batch-file-renamer/
+
+## Features
+
+- Rename files in place from a selected source folder.
+- Copy one template file into a selected output folder and rename each copy by rule.
+- Build filename rules by segment or character range.
+- Preview every target filename before execution.
+- Edit preview rows manually, import/export CSV, and execute only OK rows.
+- Switch language between Traditional Chinese, Simplified Chinese, English, and Japanese.
+- Switch visual templates and themes instantly from Settings.
+- Optional animated pet companion system with generated detailed mascots and simple geometric variants.
+
+## Browser Notes
+
+Direct rename/copy execution uses the File System Access API, so it works best in Chromium-based browsers. Other browsers can still use preview, rule building, CSV import, and CSV export.
 
 ## Run Locally
 
@@ -44,13 +27,11 @@ This project rebuilds the legacy PowerShell Windows Forms batch renamer as a sta
 py -m http.server 4173 --directory pwa
 ```
 
-Then open:
+Open:
 
 ```text
 http://127.0.0.1:4173/index.html
 ```
-
-Use Chromium-based browsers for direct local file execution through the File System Access API. Other browsers can still use preview, rule building, CSV import, and CSV export.
 
 ## Verification
 
@@ -58,6 +39,10 @@ Use Chromium-based browsers for direct local file execution through the File Sys
 npm run test
 npm run build
 ```
+
+## Deployment
+
+GitHub Pages is deployed by `.github/workflows/pages.yml` on pushes to `main`.
 
 ## Legacy Source
 

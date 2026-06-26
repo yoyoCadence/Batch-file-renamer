@@ -35,6 +35,12 @@ test("settings normalize invalid ids back to defaults", () => {
   }), DEFAULT_SETTINGS);
 });
 
+test("defaults use anime desk and sakura soft", () => {
+  assert.equal(DEFAULT_SETTINGS.template, "anime");
+  assert.equal(DEFAULT_SETTINGS.theme, "sakura");
+  assert.equal(DEFAULT_SETTINGS.petType, "folderling-deluxe");
+});
+
 test("settings persist only valid values", () => {
   const store = new Map();
   const storage = {
@@ -46,14 +52,14 @@ test("settings persist only valid values", () => {
     template: "cyber",
     theme: "midnight",
     petEnabled: true,
-    petType: "archivecube"
+    petType: "archivecube-deluxe"
   }, storage);
   assert.deepEqual(saved, {
     language: "ja",
     template: "cyber",
     theme: "midnight",
     petEnabled: true,
-    petType: "archivecube"
+    petType: "archivecube-deluxe"
   });
   assert.equal(JSON.parse(store.get("batch-file-renamer.settings")).language, "ja");
 });
@@ -64,12 +70,21 @@ test("templates and themes expose selectable ids", () => {
 });
 
 test("pet companion exposes at least five selectable non-default ids", () => {
-  assert.ok(PETS.length >= 5);
-  assert.deepEqual(PETS.map((item) => item.id), [
+  assert.ok(PETS.length >= 10);
+  assert.deepEqual(PETS.slice(0, 5).map((item) => item.id), [
+    "folderling-deluxe",
+    "staplebot-deluxe",
+    "papersprite-deluxe",
+    "archivecube-deluxe",
+    "pixelplant-deluxe"
+  ]);
+  assert.deepEqual(PETS.slice(5).map((item) => item.id), [
     "folderling",
     "staplebot",
     "papersprite",
     "archivecube",
     "pixelplant"
   ]);
+  assert.ok(PETS.slice(0, 5).every((item) => item.spriteBase));
+  assert.ok(PETS.slice(5).every((item) => item.groupKey === "pet.group.simple"));
 });

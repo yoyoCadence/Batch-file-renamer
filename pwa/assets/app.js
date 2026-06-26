@@ -41,11 +41,24 @@ const state = {
     frame: null,
     bubbleTimer: null,
     lastTime: 0,
-    justDragged: false
+    justDragged: false,
+    action: "idle",
+    actionUntil: 0,
+    nextActionAt: 0,
+    lastRandomAction: "idle"
   }
 };
 
 const hasFileSystemAccess = "showDirectoryPicker" in window && "showOpenFilePicker" in window;
+const PET_RANDOM_ACTIONS = ["hop", "cheer", "stretch", "spin", "idle"];
+const PET_ACTION_DURATIONS = {
+  idle: 900,
+  hop: 920,
+  cheer: 1100,
+  stretch: 1250,
+  spin: 860,
+  "panic-held": 520
+};
 const $ = (id) => document.getElementById(id);
 
 const els = {
@@ -55,7 +68,6 @@ const els = {
   openSettingsButton: $("openSettingsButton"),
   settingsPanel: $("settingsPanel"),
   closeSettingsButton: $("closeSettingsButton"),
-  applySettingsButton: $("applySettingsButton"),
   resetSettingsButton: $("resetSettingsButton"),
   languageSelect: $("languageSelect"),
   templateSelect: $("templateSelect"),
@@ -80,6 +92,7 @@ const els = {
   copyCount: $("copyCount"),
   pickTemplateButton: $("pickTemplateButton"),
   pickOutputFolderButton: $("pickOutputFolderButton"),
+  clearCopySetupButton: $("clearCopySetupButton"),
   templateInput: $("templateInput"),
   targetSelect: $("targetSelect"),
   directionSelect: $("directionSelect"),
@@ -116,10 +129,12 @@ const els = {
   executeButton: $("executeButton"),
   csvInput: $("csvInput"),
   targetFolderInput: $("targetFolderInput"),
+  pickPreviewOutputFolderButton: $("pickPreviewOutputFolderButton"),
   applyFolderSelectedButton: $("applyFolderSelectedButton"),
   applyFolderAllButton: $("applyFolderAllButton"),
   previewBody: $("previewBody"),
-  statusText: $("statusText")
+  statusText: $("statusText"),
+  petImage: $("petImage")
 };
 
 init();
@@ -131,6 +146,7 @@ function init() {
   document.querySelectorAll("input[name='mode']").forEach((input) => {
     input.addEventListener("change", () => {
       state.mode = input.value;
+      resetPreviewRows();
       updateMode();
       setStatusKey("status.modeSelected", { mode: tKey(`mode.${state.mode}`) });
     });
@@ -142,8 +158,12 @@ function init() {
   els.fileInput.addEventListener("change", addPreviewFiles);
   els.pickTemplateButton.addEventListener("click", pickTemplate);
   els.pickOutputFolderButton.addEventListener("click", pickOutputFolder);
+  els.clearCopySetupButton.addEventListener("click", clearCopySetup);
   els.templateInput.addEventListener("change", addTemplateFromInput);
-  els.copyCount.addEventListener("change", renderFileSummary);
+  els.copyCount.addEventListener("change", () => {
+    resetPreviewRows();
+    renderAll();
+  });
 
   [
     els.targetSelect,
@@ -171,17 +191,23 @@ function init() {
   els.importCsvButton.addEventListener("click", () => els.csvInput.click());
   els.csvInput.addEventListener("change", importCsv);
   els.executeButton.addEventListener("click", executeRows);
+  els.pickPreviewOutputFolderButton.addEventListener("click", pickOutputFolder);
   els.applyFolderSelectedButton.addEventListener("click", () => applyFolderLabel("selected"));
   els.applyFolderAllButton.addEventListener("click", () => applyFolderLabel("all"));
   els.openSettingsButton.addEventListener("click", openSettings);
   els.closeSettingsButton.addEventListener("click", closeSettings);
-  els.applySettingsButton.addEventListener("click", applySettingsFromForm);
   els.resetSettingsButton.addEventListener("click", resetSettings);
-  [els.languageSelect, els.templateSelect, els.themeSelect].forEach((control) => {
-    control.addEventListener("change", renderTemplateCards);
+  els.settingsPanel.addEventListener("click", (event) => {
+    if (event.target === els.settingsPanel) {
+      closeSettings();
+    }
+  });
+  [els.languageSelect, els.templateSelect, els.themeSelect, els.petTypeSelect].forEach((control) => {
+    control.addEventListener("change", applySettingsFromForm);
   });
   els.petEnabledInput.addEventListener("change", () => {
     els.petTypeSelect.disabled = !els.petEnabledInput.checked;
+    applySettingsFromForm();
   });
   els.petCompanion.addEventListener("pointerdown", startPetDrag);
   els.petCompanion.addEventListener("click", reactToPet);
@@ -221,7 +247,7 @@ function populateSettingsControls() {
   fillSelect(els.languageSelect, LANGUAGES, (item) => item.label);
   fillSelect(els.templateSelect, TEMPLATES, (item) => tKey(item.labelKey));
   fillSelect(els.themeSelect, THEMES, (item) => tKey(item.labelKey));
-  fillSelect(els.petTypeSelect, PETS, (item) => tKey(item.labelKey));
+  fillGroupedSelect(els.petTypeSelect, PETS, (item) => tKey(item.labelKey));
   renderTemplateCards();
 }
 
@@ -232,6 +258,26 @@ function fillSelect(select, items, labelFor) {
     option.value = item.id;
     option.textContent = labelFor(item);
     select.append(option);
+  }
+}
+
+function fillGroupedSelect(select, items, labelFor) {
+  select.innerHTML = "";
+  const groups = new Map();
+  for (const item of items) {
+    const groupKey = item.groupKey || "";
+    if (!groups.has(groupKey)) {
+      const group = groupKey ? document.createElement("optgroup") : select;
+      if (groupKey) {
+        group.label = tKey(groupKey);
+        select.append(group);
+      }
+      groups.set(groupKey, group);
+    }
+    const option = document.createElement("option");
+    option.value = item.id;
+    option.textContent = labelFor(item);
+    groups.get(groupKey).append(option);
   }
 }
 
@@ -255,7 +301,7 @@ function applyCurrentSettings() {
 function populateSettingsLabels() {
   fillSelect(els.templateSelect, TEMPLATES, (item) => tKey(item.labelKey));
   fillSelect(els.themeSelect, THEMES, (item) => tKey(item.labelKey));
-  fillSelect(els.petTypeSelect, PETS, (item) => tKey(item.labelKey));
+  fillGroupedSelect(els.petTypeSelect, PETS, (item) => tKey(item.labelKey));
   els.languageSelect.value = state.settings.language;
   els.templateSelect.value = state.settings.template;
   els.themeSelect.value = state.settings.theme;
@@ -313,7 +359,7 @@ function renderTemplateCards() {
     card.innerHTML = `<strong>${escapeHtml(tKey(template.labelKey))}</strong><span>${escapeHtml(tKey(template.descriptionKey))}</span>`;
     card.addEventListener("click", () => {
       els.templateSelect.value = template.id;
-      renderTemplateCards();
+      applySettingsFromForm();
     });
     els.templateCards.append(card);
   }
@@ -335,6 +381,11 @@ function updateMode() {
   els.renameSetup.hidden = state.mode !== "rename";
   els.copySetup.hidden = state.mode !== "copy";
   renderFileSummary();
+}
+
+function resetPreviewRows() {
+  state.rows = [];
+  state.selectedRows.clear();
 }
 
 async function pickSourceFolder() {
@@ -428,6 +479,7 @@ async function pickTemplate() {
         fileHandle: handle
       }
     };
+    resetPreviewRows();
     renderAll();
     setStatusKey("status.templateSelected", { name: file.name });
   } catch (error) {
@@ -452,6 +504,7 @@ function addTemplateFromInput() {
     }
   };
   els.templateInput.value = "";
+  resetPreviewRows();
   renderAll();
   setStatusKey("status.templatePreviewSelected", { name: file.name });
 }
@@ -468,6 +521,8 @@ async function pickOutputFolder() {
       name: directoryHandle.name,
       handle: directoryHandle
     };
+    els.targetFolderInput.value = directoryHandle.name;
+    resetPreviewRows();
     renderAll();
     setStatusKey("status.outputSelected", { name: directoryHandle.name });
   } catch (error) {
@@ -475,6 +530,17 @@ async function pickOutputFolder() {
       setStatusKey("status.outputSelectionFailed", { message: error.message });
     }
   }
+}
+
+function clearCopySetup() {
+  state.template = null;
+  state.outputDirectory = null;
+  els.templateInput.value = "";
+  els.copyCount.value = "5";
+  els.targetFolderInput.value = "";
+  resetPreviewRows();
+  renderAll();
+  setStatusKey("status.copySetupCleared");
 }
 
 function updateRuleControls() {
@@ -919,12 +985,18 @@ function applyExecutionLimits(rows) {
 
 function updatePet() {
   const enabled = state.settings.petEnabled;
+  const pet = PETS.find((item) => item.id === state.settings.petType);
   els.petLayer.hidden = !enabled;
   els.petCompanion.dataset.pet = state.settings.petType;
+  els.petCompanion.classList.toggle("has-image", Boolean(pet?.spriteBase));
+  els.petImage.hidden = !pet?.spriteBase;
+  state.pet.action = state.pet.dragging ? "panic-held" : "idle";
+  renderPetSprite();
   els.petCompanion.setAttribute("aria-label", tKey(state.settings.petType ? `pet.${state.settings.petType}` : "settings.pet"));
   if (enabled) {
     clampPetPosition();
     renderPetPosition();
+    scheduleNextPetAction(performance.now(), true);
     startPetLoop();
   } else if (state.pet.frame) {
     cancelAnimationFrame(state.pet.frame);
@@ -948,12 +1020,57 @@ function tickPet(time) {
   const delta = Math.min(48, time - state.pet.lastTime);
   state.pet.lastTime = time;
   if (!state.pet.dragging) {
+    updatePetAction(time);
     state.pet.x += state.pet.vx * delta;
     state.pet.y += state.pet.vy * delta;
     bouncePet();
     renderPetPosition();
   }
   state.pet.frame = requestAnimationFrame(tickPet);
+}
+
+function updatePetAction(time) {
+  if (state.pet.action !== "idle" && time >= state.pet.actionUntil) {
+    setPetAction("idle");
+    scheduleNextPetAction(time);
+  }
+  if (state.pet.action === "idle" && time >= state.pet.nextActionAt) {
+    const action = pickRandomPetAction();
+    setPetAction(action);
+    state.pet.actionUntil = time + PET_ACTION_DURATIONS[action];
+    if (action === "idle") {
+      scheduleNextPetAction(state.pet.actionUntil);
+    }
+  }
+}
+
+function pickRandomPetAction() {
+  const options = PET_RANDOM_ACTIONS.filter((action) => action !== state.pet.lastRandomAction);
+  const action = options[Math.floor(Math.random() * options.length)] || "hop";
+  state.pet.lastRandomAction = action;
+  return action;
+}
+
+function scheduleNextPetAction(time, soon = false) {
+  state.pet.nextActionAt = time + (soon ? 1200 : 4500 + Math.random() * 4500);
+}
+
+function setPetAction(action) {
+  if (state.pet.action === action) {
+    return;
+  }
+  state.pet.action = action;
+  renderPetSprite();
+}
+
+function renderPetSprite() {
+  const pet = PETS.find((item) => item.id === state.settings.petType);
+  els.petCompanion.dataset.action = state.pet.action;
+  if (!pet?.spriteBase) {
+    els.petImage.removeAttribute("src");
+    return;
+  }
+  els.petImage.src = `${pet.spriteBase}-${state.pet.action}.png`;
 }
 
 function bouncePet() {
@@ -996,6 +1113,7 @@ function startPetDrag(event) {
   event.preventDefault();
   state.pet.dragging = true;
   state.pet.justDragged = false;
+  setPetAction("panic-held");
   const rect = els.petCompanion.getBoundingClientRect();
   state.pet.dragOffsetX = event.clientX - rect.left;
   state.pet.dragOffsetY = event.clientY - rect.top;
@@ -1022,6 +1140,8 @@ function endPetDrag(event) {
   state.pet.vx = (Math.random() > 0.5 ? 1 : -1) * (0.025 + Math.random() * 0.025);
   state.pet.vy = (Math.random() > 0.5 ? 1 : -1) * (0.018 + Math.random() * 0.02);
   els.petCompanion.classList.remove("is-held");
+  setPetAction("idle");
+  scheduleNextPetAction(performance.now(), true);
   els.petCompanion.removeEventListener("pointermove", movePetDrag);
   try {
     els.petCompanion.releasePointerCapture(event.pointerId);
@@ -1040,6 +1160,8 @@ function reactToPet() {
   els.petCompanion.classList.remove("is-reacting");
   void els.petCompanion.offsetWidth;
   els.petCompanion.classList.add("is-reacting");
+  setPetAction("cheer");
+  state.pet.actionUntil = performance.now() + PET_ACTION_DURATIONS.cheer;
   els.petBubble.textContent = tKey(`pet.reaction.${state.settings.petType}`);
   els.petBubble.dataset.show = "true";
   clearTimeout(state.pet.bubbleTimer);

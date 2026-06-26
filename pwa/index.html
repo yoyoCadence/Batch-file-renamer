@@ -9,7 +9,7 @@
     <link rel="icon" href="./assets/icon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="./assets/style.css">
   </head>
-  <body data-template="material" data-theme="sage">
+  <body data-template="anime" data-theme="sakura">
     <div class="app-shell">
       <header class="topbar">
         <div>
@@ -45,12 +45,12 @@
               <h2 data-i18n="setup.title">檔案設定</h2>
               <p id="fileSummary">尚未載入檔案。</p>
             </div>
-            <div class="segmented" role="radiogroup" aria-label="Mode">
-              <label>
+            <div class="segmented mode-switcher" role="radiogroup" aria-label="Mode">
+              <label data-i18n-title="tooltip.modeRename" title="重新命名會在來源資料夾原地修改檔名。">
                 <input type="radio" name="mode" value="rename" checked>
                 <span data-i18n="mode.rename">重新命名</span>
               </label>
-              <label>
+              <label data-i18n-title="tooltip.modeCopy" title="複製會把模板檔案複製到輸出資料夾再改名。">
                 <input type="radio" name="mode" value="copy">
                 <span data-i18n="mode.copy">複製</span>
               </label>
@@ -86,6 +86,7 @@
             <div class="action-row">
               <button id="pickTemplateButton" class="primary-button" type="button" data-i18n="button.pickTemplate">選擇模板</button>
               <button id="pickOutputFolderButton" type="button" data-i18n="button.pickOutputFolder">選擇輸出資料夾</button>
+              <button id="clearCopySetupButton" type="button" data-i18n="button.clear">清除</button>
             </div>
             <input id="templateInput" type="file" hidden>
           </div>
@@ -172,7 +173,6 @@
 
             <div class="action-row">
               <button id="addRuleButton" class="primary-button" type="button" data-i18n="button.addRule">新增規則</button>
-              <button id="previewButton" type="button" data-i18n="button.preview">套用規則 / 預覽</button>
             </div>
           </div>
 
@@ -186,6 +186,7 @@
               <p id="previewSummary">尚未產生預覽。</p>
             </div>
             <div class="action-row align-right">
+              <button id="previewButton" class="primary-button flow-button" type="button" data-i18n="button.preview">檢查預覽</button>
               <button id="resetTargetNamesButton" type="button" data-i18n="button.useSourceNames">套用原檔名</button>
               <button id="exportCsvButton" type="button" data-i18n="button.exportCsv">匯出 CSV</button>
               <button id="importCsvButton" type="button" data-i18n="button.importCsv">匯入 CSV</button>
@@ -197,10 +198,11 @@
           <div class="folder-tools">
             <label>
               <span data-i18n="field.targetFolderLabel">目標資料夾標籤</span>
-              <input id="targetFolderInput" type="text" data-i18n-placeholder="placeholder.sourceFolder" placeholder="來源資料夾">
+              <input id="targetFolderInput" type="text" data-i18n-placeholder="placeholder.sourceFolder" data-i18n-title="tooltip.targetFolderLabel" placeholder="來源資料夾" title="更新預覽列顯示的輸出位置。">
             </label>
-            <button id="applyFolderSelectedButton" type="button" data-i18n="button.applySelected">套用到選取</button>
-            <button id="applyFolderAllButton" type="button" data-i18n="button.applyAll">套用到全部</button>
+            <button id="pickPreviewOutputFolderButton" type="button" data-i18n="button.pickPreviewOutputFolder" data-i18n-title="tooltip.pickPreviewOutputFolder" title="選擇真正要存放完成檔案的資料夾。">選擇輸出位置</button>
+            <button id="applyFolderSelectedButton" type="button" data-i18n="button.applySelected" data-i18n-title="tooltip.applySelected" title="只套用到已勾選列。">套用到選取</button>
+            <button id="applyFolderAllButton" type="button" data-i18n="button.applyAll" data-i18n-title="tooltip.applyAll" title="套用到所有預覽列。">套用到全部</button>
           </div>
 
           <div class="safety-strip">
@@ -279,7 +281,6 @@
             </div>
 
             <div class="action-row">
-              <button id="applySettingsButton" class="primary-button" type="button" data-i18n="settings.apply">套用設定</button>
               <button id="resetSettingsButton" type="button" data-i18n="settings.reset">恢復預設</button>
             </div>
           </div>
@@ -288,6 +289,7 @@
 
       <div id="petLayer" class="pet-layer" hidden>
         <button id="petCompanion" class="pet-companion" type="button" aria-live="polite">
+          <img id="petImage" class="pet-image" alt="" hidden>
           <span class="pet-body">
             <span class="pet-face"></span>
             <span class="pet-extra"></span>
