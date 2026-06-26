@@ -6,13 +6,6 @@ Use this file as the lightweight task board for this project unless the project 
 
 ## In Progress
 
-- [ ] T014 - Add GitHub Pages deployment workflow and publish the PWA.
-  - Workflow file is implemented and pushed to `main`.
-  - Commit `9683532` changed `actions/configure-pages@v5` to use `enablement: true`.
-  - Current blocker: GitHub Actions can run tests, but the repository Pages site has not been created yet.
-  - Latest failure: `Setup Pages` cannot create the Pages site because the available `GITHUB_TOKEN` / PAT is not allowed to create Pages resources.
-  - Required next step: enable GitHub Pages in repository Settings using GitHub Actions as the source, or run the Pages creation API from a GitHub login/token with Pages/admin permission. Then rerun the `Deploy PWA to GitHub Pages` workflow.
-
 ## Backlog
 
 ## Done
@@ -31,6 +24,10 @@ Use this file as the lightweight task board for this project unless the project 
 - [x] T011 - Add settings page with language, template, and theme switching.
 - [x] T012 - Generate and integrate visual background assets for distinct templates/themes.
 - [x] T013 - Expand automated tests for i18n, settings, templates, CSV, and rule behavior.
+- [x] T014 - Add GitHub Pages deployment workflow and publish the PWA.
+  - Deployed by `Deploy PWA to GitHub Pages` run `28207461653`.
+  - Published URL verified: `https://yoyocadence.github.io/Batch-file-renamer/`.
+  - Verified deployed homepage, `assets/app.js`, `assets/settings.js`, and generated background assets return `200 OK`.
 - [x] T015 - Add optional pet companion system with five selectable moving companions.
 - [x] T016 - Product audit: identify and document the missing essentials for a safer renaming workflow.
   - Missing element found: users need clear browser capability feedback before trusting local file execution.
