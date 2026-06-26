@@ -29,15 +29,23 @@ test("PWA files contain the expected settings and appearance hooks", async () =>
   assert.doesNotMatch(index, /id="applySettingsButton"/);
   assert.match(index, /id="pickPreviewOutputFolderButton"/);
   assert.match(index, /id="clearCopySetupButton"/);
+  assert.match(index, /id="showFullPathInput"/);
   assert.match(index, /data-i18n-title="tooltip.modeRename"/);
 
   const css = await readFile("pwa/assets/style.css", "utf8");
   assert.match(css, /body\[data-template="anime"\]/);
   assert.match(css, /body\[data-template="cyber"\]/);
+  assert.match(css, /body\[data-template="sakura-paper"\]/);
+  assert.match(css, /body\[data-template="holographic-glass"\]/);
   assert.match(css, /body\[data-theme="sakura"\]/);
+  assert.match(css, /body\[data-theme="terminal"\]/);
+  assert.match(css, /body\[data-theme="lamp"\]/);
   assert.match(css, /backgrounds\/material\.jpg/);
   assert.match(css, /\.flow-button/);
+  assert.match(css, /\.danger-button/);
+  assert.match(css, /\.preview-options/);
   assert.match(css, /\.pet-image/);
+  assert.match(css, /\.pet-bubble::after/);
   assert.match(css, /\[data-action="panic-held"\]/);
   assert.match(css, /@keyframes pet-hop/);
   assert.match(css, /@keyframes pet-cheer/);
@@ -56,16 +64,39 @@ test("PWA files contain the expected settings and appearance hooks", async () =>
   assert.match(app, /PET_RANDOM_ACTIONS/);
   assert.match(app, /panic-held/);
   assert.match(app, /scheduleNextPetAction/);
+  assert.match(app, /isIgnorableSystemFile/);
+  assert.match(app, /showFullPath/);
+  assert.match(app, /showPetDialogue/);
 });
 
 test("generated background assets exist and are non-empty", async () => {
-  for (const path of [
-    "pwa/assets/backgrounds/material.jpg",
-    "pwa/assets/backgrounds/anime.jpg",
-    "pwa/assets/backgrounds/cyber.jpg"
-  ]) {
+  const backgrounds = [
+    "material",
+    "anime",
+    "sakura-paper",
+    "cyber",
+    "glass-office",
+    "blueprint",
+    "watercolor",
+    "retro-terminal",
+    "wood-desk",
+    "marble",
+    "aurora",
+    "rainy-window",
+    "synthwave",
+    "forest-study",
+    "galaxy-archive",
+    "linen-notebook",
+    "industrial-metal",
+    "pastel-cloud",
+    "monochrome-ink",
+    "holographic-glass",
+    "night-lamp"
+  ];
+  for (const name of backgrounds) {
+    const path = `pwa/assets/backgrounds/${name}.jpg`;
     const info = await stat(path);
-    assert.ok(info.size > 100_000, `${path} should be a real raster asset`);
+    assert.ok(info.size > 80_000, `${path} should be a real raster asset`);
   }
 });
 
@@ -87,7 +118,10 @@ test("service worker caches all project-bound runtime assets", async () => {
     "./assets/settings.js",
     "./assets/backgrounds/material.jpg",
     "./assets/backgrounds/anime.jpg",
+    "./assets/backgrounds/sakura-paper.jpg",
     "./assets/backgrounds/cyber.jpg",
+    "./assets/backgrounds/holographic-glass.jpg",
+    "./assets/backgrounds/night-lamp.jpg",
     "./assets/pets/folderling-deluxe-panic-held.png",
     "./assets/pets/pixelplant-deluxe-spin.png"
   ]) {

@@ -52,3 +52,9 @@ Use this file as the lightweight task board for this project unless the project 
 - [x] T020 - Refresh README for the current deployed PWA.
   - Removed starter-template instructions.
   - Added the deployed GitHub Pages URL, current features, browser notes, local run command, tests, and deployment notes.
+- [x] T021 - Improve source loading, preview clarity, theme scale, and pet dialogue UX.
+  - Renamed preview-only file selection to "Select files" and reset actions to avoid implying data deletion.
+  - Added automatic filtering for common system and temporary files such as `desktop.ini` and `Thumbs.db`.
+  - Changed preview source wording to current filename, with hover full-path titles and an optional full-path display toggle.
+  - Expanded generated background templates and color themes to 20+ selectable styles.
+  - Added comic-style pet thought bubbles with 15 non-question lines per pet.

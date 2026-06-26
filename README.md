@@ -14,12 +14,16 @@ https://yoyocadence.github.io/Batch-file-renamer/
 - Preview every target filename before execution.
 - Edit preview rows manually, import/export CSV, and execute only OK rows.
 - Switch language between Traditional Chinese, Simplified Chinese, English, and Japanese.
-- Switch visual templates and themes instantly from Settings.
-- Optional animated pet companion system with generated detailed mascots and simple geometric variants.
+- Switch between 20+ generated background templates and 20+ color themes instantly from Settings.
+- Optional animated pet companion system with generated detailed mascots, simple geometric variants, draggable panic-held states, random idle actions, and comic-style thought bubbles.
+- Automatically skips common system and temporary files such as `desktop.ini` and `Thumbs.db` when loading sources.
+- Preview rows show the current filename by default, with full paths available on hover or through the preview toggle.
 
 ## Browser Notes
 
 Direct rename/copy execution uses the File System Access API, so it works best in Chromium-based browsers. Other browsers can still use preview, rule building, CSV import, and CSV export.
+
+The browser folder picker is a permission dialog and may show folders rather than the files inside them. Use **Select files** when you want to choose individual files for preview-only workflows.
 
 ## Run Locally
 

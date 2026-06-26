@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   DEFAULT_SETTINGS,
   LANGUAGES,
+  PET_DIALOGUES,
   PETS,
   TEMPLATES,
   THEMES,
@@ -65,8 +66,14 @@ test("settings persist only valid values", () => {
 });
 
 test("templates and themes expose selectable ids", () => {
-  assert.deepEqual(TEMPLATES.map((item) => item.id), ["material", "anime", "cyber"]);
-  assert.deepEqual(THEMES.map((item) => item.id), ["sage", "midnight", "sakura", "cyber"]);
+  assert.ok(TEMPLATES.length >= 20);
+  assert.ok(THEMES.length >= 20);
+  assert.ok(TEMPLATES.some((item) => item.id === "anime"));
+  assert.ok(TEMPLATES.some((item) => item.id === "sakura-paper"));
+  assert.ok(TEMPLATES.some((item) => item.id === "holographic-glass"));
+  assert.ok(THEMES.some((item) => item.id === "sakura"));
+  assert.ok(THEMES.some((item) => item.id === "terminal"));
+  assert.ok(THEMES.some((item) => item.id === "lamp"));
 });
 
 test("pet companion exposes at least five selectable non-default ids", () => {
@@ -87,4 +94,13 @@ test("pet companion exposes at least five selectable non-default ids", () => {
   ]);
   assert.ok(PETS.slice(0, 5).every((item) => item.spriteBase));
   assert.ok(PETS.slice(5).every((item) => item.groupKey === "pet.group.simple"));
+});
+
+test("every pet has at least fifteen non-question dialogue lines", () => {
+  for (const pet of PETS) {
+    const lines = PET_DIALOGUES[pet.id];
+    assert.ok(lines, `${pet.id} should have dialogue lines`);
+    assert.ok(lines.length >= 15, `${pet.id} should have at least 15 dialogue lines`);
+    assert.ok(lines.every((line) => !/[?？]/.test(line)), `${pet.id} lines should not ask questions`);
+  }
 });

@@ -8,6 +8,7 @@ import {
 import {
   DEFAULT_SETTINGS,
   LANGUAGES,
+  PET_DIALOGUES,
   PETS,
   TEMPLATES,
   THEMES,
@@ -27,6 +28,7 @@ const state = {
   rules: [],
   rows: [],
   selectedRows: new Set(),
+  showFullPath: false,
   sourceDirectoryHandle: null,
   installPrompt: null,
   settings: loadSettings(),
@@ -40,6 +42,8 @@ const state = {
     dragOffsetY: 0,
     frame: null,
     bubbleTimer: null,
+    nextDialogueAt: 0,
+    lastDialogue: "",
     lastTime: 0,
     justDragged: false,
     action: "idle",
@@ -59,6 +63,7 @@ const PET_ACTION_DURATIONS = {
   spin: 860,
   "panic-held": 520
 };
+const SYSTEM_FILE_NAMES = new Set(["desktop.ini", "thumbs.db", "ehthumbs.db", ".ds_store", ".localized"]);
 const $ = (id) => document.getElementById(id);
 
 const els = {
@@ -132,6 +137,7 @@ const els = {
   pickPreviewOutputFolderButton: $("pickPreviewOutputFolderButton"),
   applyFolderSelectedButton: $("applyFolderSelectedButton"),
   applyFolderAllButton: $("applyFolderAllButton"),
+  showFullPathInput: $("showFullPathInput"),
   previewBody: $("previewBody"),
   statusText: $("statusText"),
   petImage: $("petImage")
@@ -194,6 +200,10 @@ function init() {
   els.pickPreviewOutputFolderButton.addEventListener("click", pickOutputFolder);
   els.applyFolderSelectedButton.addEventListener("click", () => applyFolderLabel("selected"));
   els.applyFolderAllButton.addEventListener("click", () => applyFolderLabel("all"));
+  els.showFullPathInput.addEventListener("change", () => {
+    state.showFullPath = els.showFullPathInput.checked;
+    renderPreview();
+  });
   els.openSettingsButton.addEventListener("click", openSettings);
   els.closeSettingsButton.addEventListener("click", closeSettings);
   els.resetSettingsButton.addEventListener("click", resetSettings);
@@ -388,6 +398,11 @@ function resetPreviewRows() {
   state.selectedRows.clear();
 }
 
+function isIgnorableSystemFile(name) {
+  const lower = String(name).trim().toLowerCase();
+  return SYSTEM_FILE_NAMES.has(lower) || lower.startsWith("~$") || lower.endsWith(".tmp") || lower.endsWith(".temp");
+}
+
 async function pickSourceFolder() {
   if (!hasFileSystemAccess) {
     setStatusKey("status.folderNeedsChromium");
@@ -399,8 +414,13 @@ async function pickSourceFolder() {
     const directoryHandle = await window.showDirectoryPicker({ mode: "readwrite" });
     state.sourceDirectoryHandle = directoryHandle;
     const sources = [];
+    let skipped = 0;
     for await (const [name, handle] of directoryHandle.entries()) {
       if (handle.kind !== "file") {
+        continue;
+      }
+      if (isIgnorableSystemFile(name)) {
+        skipped += 1;
         continue;
       }
       sources.push({
@@ -420,7 +440,11 @@ async function pickSourceFolder() {
     state.rows = [];
     state.selectedRows.clear();
     renderAll();
-    setStatusKey("status.loadedFromFolder", { count: state.sources.length, name: directoryHandle.name });
+    setStatusKey(skipped > 0 ? "status.loadedFromFolderWithSkipped" : "status.loadedFromFolder", {
+      count: state.sources.length,
+      name: directoryHandle.name,
+      skipped
+    });
   } catch (error) {
     if (error.name !== "AbortError") {
       setStatusKey("status.folderSelectionFailed", { message: error.message });
@@ -433,8 +457,10 @@ function addPreviewFiles() {
   if (files.length === 0) {
     return;
   }
+  const visibleFiles = files.filter((file) => !isIgnorableSystemFile(file.name));
+  const skipped = files.length - visibleFiles.length;
   state.sourceDirectoryHandle = null;
-  state.sources = files.map((file, index) => ({
+  state.sources = visibleFiles.map((file, index) => ({
     name: file.name,
     path: file.webkitRelativePath || file.name,
     folder: "Browser files",
@@ -449,7 +475,10 @@ function addPreviewFiles() {
   state.selectedRows.clear();
   els.fileInput.value = "";
   renderAll();
-  setStatusKey("status.loadedPreviewFiles", { count: state.sources.length });
+  setStatusKey(skipped > 0 ? "status.loadedPreviewFilesWithSkipped" : "status.loadedPreviewFiles", {
+    count: state.sources.length,
+    skipped
+  });
 }
 
 function clearSources() {
@@ -941,7 +970,7 @@ function renderPreview() {
       cellWith(selected),
       textCell(row.no),
       textCell(tKey(`action.${row.action}`)),
-      textCell(row.sourceName),
+      textCell(state.showFullPath ? (row.sourcePath || row.sourceName) : row.sourceName, row.sourcePath || row.sourceName),
       cellWith(targetName),
       cellWith(targetFolder),
       statusCell(row.status)
@@ -997,10 +1026,13 @@ function updatePet() {
     clampPetPosition();
     renderPetPosition();
     scheduleNextPetAction(performance.now(), true);
+    scheduleNextPetDialogue(performance.now(), true);
     startPetLoop();
   } else if (state.pet.frame) {
     cancelAnimationFrame(state.pet.frame);
     state.pet.frame = null;
+    clearTimeout(state.pet.bubbleTimer);
+    els.petBubble.dataset.show = "false";
   }
 }
 
@@ -1021,6 +1053,7 @@ function tickPet(time) {
   state.pet.lastTime = time;
   if (!state.pet.dragging) {
     updatePetAction(time);
+    updatePetDialogue(time);
     state.pet.x += state.pet.vx * delta;
     state.pet.y += state.pet.vy * delta;
     bouncePet();
@@ -1053,6 +1086,34 @@ function pickRandomPetAction() {
 
 function scheduleNextPetAction(time, soon = false) {
   state.pet.nextActionAt = time + (soon ? 1200 : 4500 + Math.random() * 4500);
+}
+
+function scheduleNextPetDialogue(time, soon = false) {
+  state.pet.nextDialogueAt = time + (soon ? 2800 + Math.random() * 2600 : 8500 + Math.random() * 11000);
+}
+
+function updatePetDialogue(time) {
+  if (time < state.pet.nextDialogueAt || els.petBubble.dataset.show === "true") {
+    return;
+  }
+  showPetDialogue();
+  scheduleNextPetDialogue(time);
+}
+
+function showPetDialogue() {
+  const lines = PET_DIALOGUES[state.settings.petType] || PET_DIALOGUES[DEFAULT_SETTINGS.petType] || [];
+  if (lines.length === 0) {
+    return;
+  }
+  const choices = lines.filter((line) => line !== state.pet.lastDialogue);
+  const line = choices[Math.floor(Math.random() * choices.length)] || lines[0];
+  state.pet.lastDialogue = line;
+  els.petBubble.textContent = line;
+  els.petBubble.dataset.show = "true";
+  clearTimeout(state.pet.bubbleTimer);
+  state.pet.bubbleTimer = window.setTimeout(() => {
+    els.petBubble.dataset.show = "false";
+  }, 4200);
 }
 
 function setPetAction(action) {
@@ -1169,6 +1230,7 @@ function reactToPet() {
     els.petBubble.dataset.show = "false";
     els.petCompanion.classList.remove("is-reacting");
   }, 1800);
+  scheduleNextPetDialogue(performance.now());
 }
 
 function renderSample() {
@@ -1250,9 +1312,12 @@ function statusKind(status) {
   return "warn";
 }
 
-function textCell(text) {
+function textCell(text, title = "") {
   const td = document.createElement("td");
   td.textContent = text ?? "";
+  if (title) {
+    td.title = title;
+  }
   return td;
 }
 

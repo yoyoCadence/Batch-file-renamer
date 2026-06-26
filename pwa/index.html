@@ -60,11 +60,11 @@
           <div id="renameSetup" class="mode-panel">
             <div class="action-row">
               <button id="pickSourceFolderButton" class="primary-button" type="button" data-i18n="button.pickSourceFolder">選擇來源資料夾</button>
-              <button id="addFilesButton" type="button" data-i18n="button.addFiles">加入檔案預覽</button>
-              <button id="clearSourcesButton" type="button" data-i18n="button.clear">清除</button>
+              <button id="addFilesButton" type="button" data-i18n="button.addFiles">選取檔案</button>
+              <button id="clearSourcesButton" type="button" data-i18n="button.clear">重設</button>
             </div>
             <input id="fileInput" type="file" multiple hidden>
-            <p class="hint" data-i18n="hint.rename">選擇資料夾可在 Chromium 直接執行。單純加入檔案則支援預覽與 CSV 匯出。</p>
+            <p class="hint" data-i18n="hint.rename">選擇來源資料夾可在 Chromium 取得執行權限；資料夾挑選視窗可能只顯示資料夾，若要挑特定檔案請用「選取檔案」。系統與暫存檔會自動略過。</p>
             <div id="sourceList" class="file-list" aria-live="polite"></div>
           </div>
 
@@ -86,7 +86,7 @@
             <div class="action-row">
               <button id="pickTemplateButton" class="primary-button" type="button" data-i18n="button.pickTemplate">選擇模板</button>
               <button id="pickOutputFolderButton" type="button" data-i18n="button.pickOutputFolder">選擇輸出資料夾</button>
-              <button id="clearCopySetupButton" type="button" data-i18n="button.clear">清除</button>
+              <button id="clearCopySetupButton" type="button" data-i18n="button.clear">重設</button>
             </div>
             <input id="templateInput" type="file" hidden>
           </div>
@@ -217,6 +217,13 @@
             </div>
           </div>
 
+          <div class="preview-options">
+            <label class="toggle-row path-toggle">
+              <input id="showFullPathInput" type="checkbox">
+              <span data-i18n="preview.showFullPath">顯示完整路徑</span>
+            </label>
+          </div>
+
           <div class="table-wrap">
             <table>
               <thead>
@@ -224,7 +231,7 @@
                   <th><span class="sr-only" data-i18n="table.select">選取</span></th>
                   <th data-i18n="table.no">#</th>
                   <th data-i18n="table.action">動作</th>
-                  <th data-i18n="table.source">來源</th>
+                  <th data-i18n="table.source">目前檔名</th>
                   <th data-i18n="table.targetName">目標檔名</th>
                   <th data-i18n="table.targetFolder">目標資料夾</th>
                   <th data-i18n="table.status">狀態</th>
