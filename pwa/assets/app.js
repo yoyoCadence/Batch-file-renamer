@@ -32,6 +32,8 @@ const state = {
   showFullPath: false,
   sourceDirectoryHandle: null,
   installPrompt: null,
+  updateWorker: null,
+  updateDismissed: false,
   settings: loadSettings(),
   pet: {
     x: 32,
@@ -160,7 +162,10 @@ const els = {
   showFullPathInput: $("showFullPathInput"),
   previewBody: $("previewBody"),
   statusText: $("statusText"),
-  petImage: $("petImage")
+  petImage: $("petImage"),
+  updateBanner: $("updateBanner"),
+  updateNowButton: $("updateNowButton"),
+  dismissUpdateButton: $("dismissUpdateButton")
 };
 
 init();
@@ -261,17 +266,78 @@ function init() {
     state.installPrompt = null;
     els.installButton.hidden = true;
   });
+  els.updateNowButton.addEventListener("click", applyPendingUpdate);
+  els.dismissUpdateButton.addEventListener("click", () => {
+    state.updateDismissed = true;
+    els.updateBanner.hidden = true;
+  });
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("./service-worker.js").catch(() => {
-      setStatusKey("status.swFailed");
-    });
+    registerServiceWorker();
   }
 
   updateSupportBadge();
   updateMode();
   updateRuleControls();
   renderAll();
+}
+
+function registerServiceWorker() {
+  let reloadingForUpdate = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (reloadingForUpdate) {
+      return;
+    }
+    reloadingForUpdate = true;
+    window.location.reload();
+  });
+
+  navigator.serviceWorker.register("./service-worker.js").then((registration) => {
+    watchServiceWorkerRegistration(registration);
+    window.setInterval(() => registration.update(), 60 * 60 * 1000);
+    registration.update().catch(() => {
+      // Update checks are opportunistic; the app can keep running from cache.
+    });
+  }).catch(() => {
+    setStatusKey("status.swFailed");
+  });
+}
+
+function watchServiceWorkerRegistration(registration) {
+  if (registration.waiting && navigator.serviceWorker.controller) {
+    showUpdateAvailable(registration.waiting);
+  }
+
+  registration.addEventListener("updatefound", () => {
+    const worker = registration.installing;
+    if (!worker) {
+      return;
+    }
+    worker.addEventListener("statechange", () => {
+      if (worker.state === "installed" && navigator.serviceWorker.controller) {
+        showUpdateAvailable(worker);
+      }
+    });
+  });
+}
+
+function showUpdateAvailable(worker) {
+  state.updateWorker = worker;
+  if (!state.updateDismissed) {
+    els.updateBanner.hidden = false;
+  }
+  setStatusKey("status.updateReady");
+}
+
+function applyPendingUpdate() {
+  if (!state.updateWorker) {
+    window.location.reload();
+    return;
+  }
+  els.updateNowButton.disabled = true;
+  setStatusKey("status.updateApplying");
+  state.updateWorker.postMessage({ type: "SKIP_WAITING" });
+  window.setTimeout(() => window.location.reload(), 4500);
 }
 
 function populateSettingsControls() {

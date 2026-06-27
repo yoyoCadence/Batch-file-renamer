@@ -72,3 +72,8 @@ Use this file as the lightweight task board for this project unless the project 
   - Added `README.en.md` and `README.ja.md` with matching structure.
   - Reworked copy to lead with user value, safety cues, and clear workflow before technical architecture.
   - Preserved technical details for PWA structure, File System Access API limits, tests, deployment, and legacy source.
+- [x] T025 - Add an in-app PWA update flow so users can leave stale caches.
+  - Changed the service worker to wait for an explicit `SKIP_WAITING` message before activating an update.
+  - Added an update banner with localized copy and an Update now action.
+  - Registered service worker update checks on app startup and hourly while the app is open.
+  - Documented the cache update behavior in all README language versions.

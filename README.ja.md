@@ -57,7 +57,7 @@ Live App: https://yoyocadence.github.io/Batch-file-renamer/
 - `pwa/assets/rules.js`：ファイル名ルールエンジン、CSV 変換、プレビュー行の検証。
 - `pwa/assets/settings.js`：言語、テンプレート、テーマ、ペット、設定正規化、翻訳辞書。
 - `pwa/assets/style.css`：レスポンシブレイアウト、テーマ変数、背景テンプレート、ペットアニメーション。
-- `pwa/service-worker.js`：PWA の runtime cache。素材更新時は cache version を更新します。
+- `pwa/service-worker.js`：PWA の runtime cache。素材更新時は cache version を更新し、アプリ側で新バージョンへの切り替えを案内します。
 - `tests/*.test.mjs`：Node test runner によるルール、i18n、静的素材、service worker cache、UI hook のテスト。
 
 ファイル操作の方針：
@@ -97,6 +97,8 @@ npm run build
 ## デプロイ
 
 `main` へ push すると `.github/workflows/pages.yml` により GitHub Pages へデプロイされます。
+
+PWA はバックグラウンドで新しい service worker を確認します。更新準備ができると画面下部に案内が出て、**今すぐ更新** を押すと最新 cache へ切り替えてページを再読み込みします。
 
 Live URL:
 

@@ -57,7 +57,7 @@ Live App: https://yoyocadence.github.io/Batch-file-renamer/
 - `pwa/assets/rules.js`：檔名規則引擎、CSV 轉換、預覽列驗證。
 - `pwa/assets/settings.js`：語系、模板、主題、寵物設定與翻譯字典。
 - `pwa/assets/style.css`：響應式版面、主題變數、背景模板、寵物動畫。
-- `pwa/service-worker.js`：PWA runtime cache，部署新素材時會 bump cache 版本。
+- `pwa/service-worker.js`：PWA runtime cache，部署新素材時會 bump cache 版本，並透過更新提示讓使用者切換到新版。
 - `tests/*.test.mjs`：Node test runner 測試規則、i18n、靜態資產、service worker cache 與 UI hook。
 
 檔案操作策略：
@@ -97,6 +97,8 @@ npm run build
 ## 部署
 
 GitHub Pages 由 `.github/workflows/pages.yml` 在推送到 `main` 時部署。
+
+PWA 會在背景檢查新版 service worker。偵測到新版本時，畫面底部會出現更新提示；按下「立即更新」後會切換到最新 cache 並重新載入頁面。
 
 部署網址：
 

@@ -57,7 +57,7 @@ This is a backend-free static PWA:
 - `pwa/assets/rules.js`: filename rule engine, CSV conversion, and preview-row validation.
 - `pwa/assets/settings.js`: languages, templates, themes, pets, settings normalization, and translation dictionaries.
 - `pwa/assets/style.css`: responsive layout, theme variables, background templates, and pet animations.
-- `pwa/service-worker.js`: runtime cache for the PWA; cache version is bumped when assets change.
+- `pwa/service-worker.js`: runtime cache for the PWA; cache version is bumped when assets change, and the app prompts users to switch to the new version.
 - `tests/*.test.mjs`: Node test runner coverage for rules, i18n, static assets, service worker cache, and UI hooks.
 
 File operation strategy:
@@ -97,6 +97,8 @@ Current tests cover:
 ## Deployment
 
 GitHub Pages is deployed by `.github/workflows/pages.yml` on pushes to `main`.
+
+The PWA checks for a newer service worker in the background. When an update is ready, a bottom banner appears; choosing **Update now** activates the latest cache and reloads the page.
 
 Live URL:
 

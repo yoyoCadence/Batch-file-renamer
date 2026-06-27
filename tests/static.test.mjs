@@ -23,6 +23,8 @@ test("PWA files contain the expected settings and appearance hooks", async () =>
   assert.match(index, /id="petMotionSelect"/);
   assert.match(index, /id="petCompanion"/);
   assert.match(index, /id="petImage"/);
+  assert.match(index, /id="updateBanner"/);
+  assert.match(index, /id="updateNowButton"/);
   assert.match(index, /class="[^"]*\bguide-panel\b[^"]*"/);
   assert.match(index, /id="executionSummary"/);
   assert.match(index, /class="[^"]*\bstatus-legend\b[^"]*"/);
@@ -45,6 +47,7 @@ test("PWA files contain the expected settings and appearance hooks", async () =>
   assert.match(css, /\.flow-button/);
   assert.match(css, /\.danger-button/);
   assert.match(css, /\.preview-options/);
+  assert.match(css, /\.update-banner/);
   assert.match(css, /\.pet-image/);
   assert.match(css, /\.pet-bubble::after/);
   assert.match(css, /\[data-action="panic-held"\]/);
@@ -75,6 +78,9 @@ test("PWA files contain the expected settings and appearance hooks", async () =>
   assert.match(app, /updateSmartPetMotion/);
   assert.match(app, /pickSmartTransition/);
   assert.match(app, /petSurfaces/);
+  assert.match(app, /registerServiceWorker/);
+  assert.match(app, /showUpdateAvailable/);
+  assert.match(app, /SKIP_WAITING/);
 });
 
 test("generated background assets exist and are non-empty", async () => {
@@ -127,6 +133,8 @@ test("generated pet action assets exist and are transparent pngs", async () => {
 
 test("service worker caches all project-bound runtime assets", async () => {
   const worker = await readFile("pwa/service-worker.js", "utf8");
+  assert.match(worker, /batch-file-renamer-v6/);
+  assert.match(worker, /SKIP_WAITING/);
   for (const asset of [
     "./assets/settings.js",
     "./assets/backgrounds/material.jpg",
