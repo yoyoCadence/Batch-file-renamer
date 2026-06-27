@@ -14,8 +14,9 @@ https://yoyocadence.github.io/Batch-file-renamer/
 - Preview every target filename before execution.
 - Edit preview rows manually, import/export CSV, and execute only OK rows.
 - Switch language between Traditional Chinese, Simplified Chinese, English, and Japanese.
-- Switch between 20+ generated background templates and 20+ color themes instantly from Settings.
-- Optional animated pet companion system with generated detailed mascots, simple geometric variants, draggable panic-held states, random idle actions, and comic-style thought bubbles.
+- Switch between 20+ high-detail generated background templates and 20+ color themes instantly from Settings.
+- Optional animated pet companion system with generated detailed mascots, simple geometric variants, draggable panic-held states, random idle actions, comic-style thought bubbles, and a grounded movement mode.
+- Try the Portal File Mender pet for the newer movement system: it walks on the floor or panel ledges, then uses portal, bamboo-copter, or rope transitions to move elsewhere.
 - Automatically skips common system and temporary files such as `desktop.ini` and `Thumbs.db` when loading sources.
 - Preview rows show the current filename by default, with full paths available on hover or through the preview toggle.
 

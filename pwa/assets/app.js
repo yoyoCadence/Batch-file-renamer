@@ -9,6 +9,7 @@ import {
   DEFAULT_SETTINGS,
   LANGUAGES,
   PET_DIALOGUES,
+  PET_MOTION_MODES,
   PETS,
   TEMPLATES,
   THEMES,
@@ -49,7 +50,21 @@ const state = {
     action: "idle",
     actionUntil: 0,
     nextActionAt: 0,
-    lastRandomAction: "idle"
+    lastRandomAction: "idle",
+    facing: 1,
+    motionPhase: "walk",
+    motionUntil: 0,
+    motionStartedAt: 0,
+    motionDuration: 0,
+    motionKind: "walk",
+    motionSwitched: false,
+    targetX: 0,
+    targetY: 0,
+    startX: 0,
+    startY: 0,
+    endX: 0,
+    endY: 0,
+    surfaceY: 0
   }
 };
 
@@ -61,6 +76,10 @@ const PET_ACTION_DURATIONS = {
   cheer: 1100,
   stretch: 1250,
   spin: 860,
+  walk: 1200,
+  portal: 1450,
+  copter: 1700,
+  rope: 1600,
   "panic-held": 520
 };
 const SYSTEM_FILE_NAMES = new Set(["desktop.ini", "thumbs.db", "ehthumbs.db", ".ds_store", ".localized"]);
@@ -79,6 +98,7 @@ const els = {
   themeSelect: $("themeSelect"),
   petEnabledInput: $("petEnabledInput"),
   petTypeSelect: $("petTypeSelect"),
+  petMotionSelect: $("petMotionSelect"),
   templateCards: $("templateCards"),
   currentLookText: $("currentLookText"),
   petLayer: $("petLayer"),
@@ -212,11 +232,12 @@ function init() {
       closeSettings();
     }
   });
-  [els.languageSelect, els.templateSelect, els.themeSelect, els.petTypeSelect].forEach((control) => {
+  [els.languageSelect, els.templateSelect, els.themeSelect, els.petTypeSelect, els.petMotionSelect].forEach((control) => {
     control.addEventListener("change", applySettingsFromForm);
   });
   els.petEnabledInput.addEventListener("change", () => {
     els.petTypeSelect.disabled = !els.petEnabledInput.checked;
+    els.petMotionSelect.disabled = !els.petEnabledInput.checked;
     applySettingsFromForm();
   });
   els.petCompanion.addEventListener("pointerdown", startPetDrag);
@@ -257,6 +278,7 @@ function populateSettingsControls() {
   fillSelect(els.languageSelect, LANGUAGES, (item) => item.label);
   fillSelect(els.templateSelect, TEMPLATES, (item) => tKey(item.labelKey));
   fillSelect(els.themeSelect, THEMES, (item) => tKey(item.labelKey));
+  fillSelect(els.petMotionSelect, PET_MOTION_MODES, (item) => tKey(item.labelKey));
   fillGroupedSelect(els.petTypeSelect, PETS, (item) => tKey(item.labelKey));
   renderTemplateCards();
 }
@@ -300,7 +322,9 @@ function applyCurrentSettings() {
   els.themeSelect.value = state.settings.theme;
   els.petEnabledInput.checked = state.settings.petEnabled;
   els.petTypeSelect.value = state.settings.petType;
+  els.petMotionSelect.value = state.settings.petMotion;
   els.petTypeSelect.disabled = !state.settings.petEnabled;
+  els.petMotionSelect.disabled = !state.settings.petEnabled;
   populateSettingsLabels();
   updatePet();
   updateSupportBadge();
@@ -311,13 +335,16 @@ function applyCurrentSettings() {
 function populateSettingsLabels() {
   fillSelect(els.templateSelect, TEMPLATES, (item) => tKey(item.labelKey));
   fillSelect(els.themeSelect, THEMES, (item) => tKey(item.labelKey));
+  fillSelect(els.petMotionSelect, PET_MOTION_MODES, (item) => tKey(item.labelKey));
   fillGroupedSelect(els.petTypeSelect, PETS, (item) => tKey(item.labelKey));
   els.languageSelect.value = state.settings.language;
   els.templateSelect.value = state.settings.template;
   els.themeSelect.value = state.settings.theme;
   els.petEnabledInput.checked = state.settings.petEnabled;
   els.petTypeSelect.value = state.settings.petType;
+  els.petMotionSelect.value = state.settings.petMotion;
   els.petTypeSelect.disabled = !state.settings.petEnabled;
+  els.petMotionSelect.disabled = !state.settings.petEnabled;
   renderTemplateCards();
   const template = TEMPLATES.find((item) => item.id === state.settings.template);
   const theme = THEMES.find((item) => item.id === state.settings.theme);
@@ -330,7 +357,9 @@ function openSettings() {
   els.themeSelect.value = state.settings.theme;
   els.petEnabledInput.checked = state.settings.petEnabled;
   els.petTypeSelect.value = state.settings.petType;
+  els.petMotionSelect.value = state.settings.petMotion;
   els.petTypeSelect.disabled = !state.settings.petEnabled;
+  els.petMotionSelect.disabled = !state.settings.petEnabled;
   renderTemplateCards();
   els.settingsPanel.hidden = false;
 }
@@ -345,7 +374,8 @@ function applySettingsFromForm() {
     template: els.templateSelect.value,
     theme: els.themeSelect.value,
     petEnabled: els.petEnabledInput.checked,
-    petType: els.petTypeSelect.value
+    petType: els.petTypeSelect.value,
+    petMotion: els.petMotionSelect.value
   });
   applyCurrentSettings();
   setStatusKey("status.settingsApplied");
@@ -1017,13 +1047,19 @@ function updatePet() {
   const pet = PETS.find((item) => item.id === state.settings.petType);
   els.petLayer.hidden = !enabled;
   els.petCompanion.dataset.pet = state.settings.petType;
+  els.petCompanion.dataset.motion = state.settings.petMotion;
   els.petCompanion.classList.toggle("has-image", Boolean(pet?.spriteBase));
   els.petImage.hidden = !pet?.spriteBase;
   state.pet.action = state.pet.dragging ? "panic-held" : "idle";
   renderPetSprite();
   els.petCompanion.setAttribute("aria-label", tKey(state.settings.petType ? `pet.${state.settings.petType}` : "settings.pet"));
   if (enabled) {
-    clampPetPosition();
+    if (state.settings.petMotion === "smart") {
+      snapPetToSurface();
+      chooseSmartWalkTarget(performance.now(), true);
+    } else {
+      clampPetPosition();
+    }
     renderPetPosition();
     scheduleNextPetAction(performance.now(), true);
     scheduleNextPetDialogue(performance.now(), true);
@@ -1052,14 +1088,130 @@ function tickPet(time) {
   const delta = Math.min(48, time - state.pet.lastTime);
   state.pet.lastTime = time;
   if (!state.pet.dragging) {
-    updatePetAction(time);
+    if (state.settings.petMotion === "smart") {
+      updateSmartPetMotion(time, delta);
+    } else {
+      updatePetAction(time);
+      state.pet.x += state.pet.vx * delta;
+      state.pet.y += state.pet.vy * delta;
+      bouncePet();
+    }
     updatePetDialogue(time);
-    state.pet.x += state.pet.vx * delta;
-    state.pet.y += state.pet.vy * delta;
-    bouncePet();
     renderPetPosition();
   }
   state.pet.frame = requestAnimationFrame(tickPet);
+}
+
+function updateSmartPetMotion(time, delta) {
+  if (state.pet.action === "cheer" && time < state.pet.actionUntil) {
+    return;
+  }
+  if (state.pet.action === "cheer" && time >= state.pet.actionUntil) {
+    els.petCompanion.classList.remove("is-reacting");
+    setPetAction("walk");
+  }
+
+  if (["portal", "copter", "rope"].includes(state.pet.motionPhase)) {
+    updateSmartTransition(time);
+    return;
+  }
+
+  if (time >= state.pet.nextActionAt) {
+    const destination = pickSmartDestination();
+    const sameSurface = Math.abs(destination.y - state.pet.surfaceY) < 4;
+    if (!sameSurface) {
+      startSmartTransition(pickSmartTransition(), destination, time);
+      scheduleNextPetAction(time);
+      return;
+    }
+    state.pet.targetX = destination.x;
+    state.pet.targetY = destination.y;
+    scheduleNextPetAction(time);
+  }
+
+  const dx = state.pet.targetX - state.pet.x;
+  if (Math.abs(dx) <= 2) {
+    chooseSmartWalkTarget(time);
+    setPetAction("idle");
+    return;
+  }
+  state.pet.facing = dx < 0 ? -1 : 1;
+  state.pet.x += Math.sign(dx) * Math.min(Math.abs(dx), delta * 0.045);
+  state.pet.y = state.pet.surfaceY;
+  setPetAction("walk");
+}
+
+function chooseSmartWalkTarget(time, soon = false) {
+  const surface = nearestPetSurface();
+  state.pet.surfaceY = surface.y;
+  state.pet.targetY = surface.y;
+  state.pet.targetX = randomBetween(surface.minX, surface.maxX);
+  scheduleNextPetAction(time, soon);
+}
+
+function pickSmartDestination() {
+  const surfaces = petSurfaces();
+  const currentY = state.pet.surfaceY || nearestPetSurface().y;
+  const otherSurfaces = surfaces.filter((surface) => Math.abs(surface.y - currentY) > 24);
+  const surface = otherSurfaces.length > 0 && Math.random() < 0.52
+    ? otherSurfaces[Math.floor(Math.random() * otherSurfaces.length)]
+    : nearestPetSurface();
+  return {
+    x: randomBetween(surface.minX, surface.maxX),
+    y: surface.y
+  };
+}
+
+function pickSmartTransition() {
+  const choices = ["portal", "copter", "rope"].filter((kind) => kind !== state.pet.motionKind);
+  return choices[Math.floor(Math.random() * choices.length)] || "portal";
+}
+
+function startSmartTransition(kind, destination, time) {
+  state.pet.motionPhase = kind;
+  state.pet.motionKind = kind;
+  state.pet.motionStartedAt = time;
+  state.pet.motionDuration = PET_ACTION_DURATIONS[kind];
+  state.pet.motionUntil = time + state.pet.motionDuration;
+  state.pet.motionSwitched = false;
+  state.pet.startX = state.pet.x;
+  state.pet.startY = state.pet.y;
+  state.pet.endX = destination.x;
+  state.pet.endY = destination.y;
+  els.petCompanion.dataset.travel = kind;
+  setPetAction(kind);
+}
+
+function updateSmartTransition(time) {
+  const progress = Math.min(1, (time - state.pet.motionStartedAt) / state.pet.motionDuration);
+  const eased = easeInOut(progress);
+
+  if (state.pet.motionPhase === "portal") {
+    if (!state.pet.motionSwitched && progress >= 0.48) {
+      state.pet.x = state.pet.endX;
+      state.pet.y = state.pet.endY;
+      state.pet.motionSwitched = true;
+    }
+  } else if (state.pet.motionPhase === "copter") {
+    state.pet.x = lerp(state.pet.startX, state.pet.endX, eased);
+    const lift = Math.sin(progress * Math.PI) * 72;
+    state.pet.y = lerp(state.pet.startY, state.pet.endY, eased) - lift;
+    state.pet.facing = state.pet.endX < state.pet.startX ? -1 : 1;
+  } else if (state.pet.motionPhase === "rope") {
+    state.pet.x = lerp(state.pet.startX, state.pet.endX, eased);
+    state.pet.y = lerp(state.pet.startY, state.pet.endY, eased);
+    state.pet.facing = state.pet.endX < state.pet.startX ? -1 : 1;
+  }
+
+  if (progress >= 1) {
+    state.pet.x = state.pet.endX;
+    state.pet.y = state.pet.endY;
+    state.pet.surfaceY = state.pet.endY;
+    state.pet.motionPhase = "walk";
+    delete els.petCompanion.dataset.travel;
+    chooseSmartWalkTarget(time);
+    setPetAction("walk");
+  }
 }
 
 function updatePetAction(time) {
@@ -1131,7 +1283,10 @@ function renderPetSprite() {
     els.petImage.removeAttribute("src");
     return;
   }
-  els.petImage.src = `${pet.spriteBase}-${state.pet.action}.png`;
+  const action = pet.smart || ["idle", "hop", "cheer", "stretch", "spin", "panic-held"].includes(state.pet.action)
+    ? state.pet.action
+    : "idle";
+  els.petImage.src = `${pet.spriteBase}-${action}.png`;
 }
 
 function bouncePet() {
@@ -1161,10 +1316,59 @@ function petBounds() {
   };
 }
 
+function petSurfaces() {
+  const size = 92;
+  const bounds = petBounds();
+  const surfaces = [{
+    id: "floor",
+    minX: bounds.minX,
+    maxX: bounds.maxX,
+    y: bounds.maxY
+  }];
+
+  document.querySelectorAll(".panel").forEach((panel, index) => {
+    const rect = panel.getBoundingClientRect();
+    const minX = Math.max(bounds.minX, rect.left + 12);
+    const maxX = Math.min(bounds.maxX, rect.right - size - 12);
+    const y = rect.top - size + 12;
+    if (maxX - minX >= 120 && y >= bounds.minY && y <= bounds.maxY - 56) {
+      surfaces.push({ id: `panel-${index}`, minX, maxX, y });
+    }
+  });
+
+  return surfaces;
+}
+
+function nearestPetSurface() {
+  const surfaces = petSurfaces();
+  return surfaces.reduce((closest, surface) => {
+    return Math.abs(surface.y - state.pet.y) < Math.abs(closest.y - state.pet.y) ? surface : closest;
+  }, surfaces[0]);
+}
+
+function snapPetToSurface() {
+  const surface = nearestPetSurface();
+  state.pet.surfaceY = surface.y;
+  state.pet.y = surface.y;
+  state.pet.x = Math.max(surface.minX, Math.min(surface.maxX, state.pet.x));
+}
+
 function renderPetPosition() {
-  const direction = state.pet.vx < 0 ? -1 : 1;
+  const direction = state.pet.facing || (state.pet.vx < 0 ? -1 : 1);
   els.petCompanion.style.transform = `translate(${state.pet.x}px, ${state.pet.y}px) scaleX(${direction})`;
   els.petBubble.style.transform = `scaleX(${direction})`;
+}
+
+function randomBetween(min, max) {
+  return min + Math.random() * Math.max(1, max - min);
+}
+
+function lerp(start, end, amount) {
+  return start + (end - start) * amount;
+}
+
+function easeInOut(amount) {
+  return amount < 0.5 ? 2 * amount * amount : 1 - Math.pow(-2 * amount + 2, 2) / 2;
 }
 
 function startPetDrag(event) {
@@ -1200,7 +1404,13 @@ function endPetDrag(event) {
   state.pet.dragging = false;
   state.pet.vx = (Math.random() > 0.5 ? 1 : -1) * (0.025 + Math.random() * 0.025);
   state.pet.vy = (Math.random() > 0.5 ? 1 : -1) * (0.018 + Math.random() * 0.02);
+  state.pet.facing = state.pet.vx < 0 ? -1 : 1;
   els.petCompanion.classList.remove("is-held");
+  delete els.petCompanion.dataset.travel;
+  if (state.settings.petMotion === "smart") {
+    snapPetToSurface();
+    chooseSmartWalkTarget(performance.now(), true);
+  }
   setPetAction("idle");
   scheduleNextPetAction(performance.now(), true);
   els.petCompanion.removeEventListener("pointermove", movePetDrag);

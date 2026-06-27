@@ -4,6 +4,7 @@ import {
   DEFAULT_SETTINGS,
   LANGUAGES,
   PET_DIALOGUES,
+  PET_MOTION_MODES,
   PETS,
   TEMPLATES,
   THEMES,
@@ -32,14 +33,16 @@ test("settings normalize invalid ids back to defaults", () => {
     template: "unknown",
     theme: "none",
     petEnabled: "yes",
-    petType: "unknown"
+    petType: "unknown",
+    petMotion: "unknown"
   }), DEFAULT_SETTINGS);
 });
 
 test("defaults use anime desk and sakura soft", () => {
   assert.equal(DEFAULT_SETTINGS.template, "anime");
   assert.equal(DEFAULT_SETTINGS.theme, "sakura");
-  assert.equal(DEFAULT_SETTINGS.petType, "folderling-deluxe");
+  assert.equal(DEFAULT_SETTINGS.petType, "portal-file-mender");
+  assert.equal(DEFAULT_SETTINGS.petMotion, "smart");
 });
 
 test("settings persist only valid values", () => {
@@ -53,14 +56,16 @@ test("settings persist only valid values", () => {
     template: "cyber",
     theme: "midnight",
     petEnabled: true,
-    petType: "archivecube-deluxe"
+    petType: "archivecube-deluxe",
+    petMotion: "drift"
   }, storage);
   assert.deepEqual(saved, {
     language: "ja",
     template: "cyber",
     theme: "midnight",
     petEnabled: true,
-    petType: "archivecube-deluxe"
+    petType: "archivecube-deluxe",
+    petMotion: "drift"
   });
   assert.equal(JSON.parse(store.get("batch-file-renamer.settings")).language, "ja");
 });
@@ -74,26 +79,29 @@ test("templates and themes expose selectable ids", () => {
   assert.ok(THEMES.some((item) => item.id === "sakura"));
   assert.ok(THEMES.some((item) => item.id === "terminal"));
   assert.ok(THEMES.some((item) => item.id === "lamp"));
+  assert.deepEqual(PET_MOTION_MODES.map((item) => item.id), ["smart", "drift"]);
 });
 
 test("pet companion exposes at least five selectable non-default ids", () => {
-  assert.ok(PETS.length >= 10);
-  assert.deepEqual(PETS.slice(0, 5).map((item) => item.id), [
+  assert.ok(PETS.length >= 11);
+  assert.equal(PETS[0].id, "portal-file-mender");
+  assert.ok(PETS[0].smart);
+  assert.deepEqual(PETS.slice(1, 6).map((item) => item.id), [
     "folderling-deluxe",
     "staplebot-deluxe",
     "papersprite-deluxe",
     "archivecube-deluxe",
     "pixelplant-deluxe"
   ]);
-  assert.deepEqual(PETS.slice(5).map((item) => item.id), [
+  assert.deepEqual(PETS.slice(6).map((item) => item.id), [
     "folderling",
     "staplebot",
     "papersprite",
     "archivecube",
     "pixelplant"
   ]);
-  assert.ok(PETS.slice(0, 5).every((item) => item.spriteBase));
-  assert.ok(PETS.slice(5).every((item) => item.groupKey === "pet.group.simple"));
+  assert.ok(PETS.slice(0, 6).every((item) => item.spriteBase));
+  assert.ok(PETS.slice(6).every((item) => item.groupKey === "pet.group.simple"));
 });
 
 test("every pet has at least fifteen non-question dialogue lines", () => {

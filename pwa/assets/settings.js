@@ -158,7 +158,13 @@ export const THEMES = [
   { id: "lamp", labelKey: "theme.lamp" }
 ];
 
+export const PET_MOTION_MODES = [
+  { id: "smart", labelKey: "pet.motion.smart" },
+  { id: "drift", labelKey: "pet.motion.drift" }
+];
+
 export const PETS = [
+  { id: "portal-file-mender", labelKey: "pet.portalFileMender", groupKey: "pet.group.generated", spriteBase: "./assets/pets/portal-file-mender", smart: true },
   { id: "folderling-deluxe", labelKey: "pet.folderlingDeluxe", groupKey: "pet.group.generated", spriteBase: "./assets/pets/folderling-deluxe" },
   { id: "staplebot-deluxe", labelKey: "pet.staplebotDeluxe", groupKey: "pet.group.generated", spriteBase: "./assets/pets/staplebot-deluxe" },
   { id: "papersprite-deluxe", labelKey: "pet.paperspriteDeluxe", groupKey: "pet.group.generated", spriteBase: "./assets/pets/papersprite-deluxe" },
@@ -176,7 +182,8 @@ export const DEFAULT_SETTINGS = {
   template: "anime",
   theme: "sakura",
   petEnabled: false,
-  petType: "folderling-deluxe"
+  petType: "portal-file-mender",
+  petMotion: "smart"
 };
 
 export const PET_DIALOGUES = {
@@ -351,6 +358,198 @@ export const PET_DIALOGUES = {
     "慢慢檢查，結果會更漂亮。"
   ]
 };
+
+const HUMAN_PET_DIALOGUES = {
+  "portal-file-mender": [
+    "我先在這裡走走，不打擾你。",
+    "剛剛那個角落滿安靜的。",
+    "我換個地方待一下，很快回來。",
+    "這裡視野不錯，可以看見整張表。",
+    "我有把腳步放輕。",
+    "那個按鈕看起來很重要，我不踩。",
+    "我剛剛從小門繞過來了。",
+    "桌面風有點舒服。",
+    "我在旁邊陪你整理一下。",
+    "這個位置剛好不擋路。",
+    "我看到有些檔名排得挺整齊。",
+    "我去上面看一下，再慢慢走回來。",
+    "今天適合把事情一格一格處理完。",
+    "我會避開你正在看的地方。",
+    "這條路線走起來很順。"
+  ],
+  "folderling-deluxe": [
+    "我先把自己收小一點。",
+    "這邊的光剛剛好。",
+    "我會待在角落陪你。",
+    "剛剛那列看起來很順眼。",
+    "我喜歡乾淨的檔名，但不急。",
+    "有需要時我就在旁邊。",
+    "我走慢一點，免得擋到畫面。",
+    "整理完一批會很有成就感。",
+    "我剛剛差點坐到資料夾邊邊。",
+    "這個桌面很適合工作。",
+    "我會安靜看著進度。",
+    "先預覽一下，心情會穩很多。",
+    "我今天精神不錯。",
+    "我把小標籤摺好了。",
+    "這裡很適合短暫休息。"
+  ],
+  "staplebot-deluxe": [
+    "喀，我站穩了。",
+    "這裡不用我出力也很順。",
+    "我會把聲音放小。",
+    "剛剛那一步挺漂亮。",
+    "我在旁邊看著就好。",
+    "按鈕不要急著按，慢慢來。",
+    "這批檔案看起來快排好了。",
+    "我剛剛走了一個很直的路線。",
+    "桌面邊邊很適合巡邏。",
+    "我喜歡事情被整理清楚的感覺。",
+    "狀態穩定時最舒服。",
+    "我先不亂動。",
+    "喀，這裡視野很好。",
+    "我把小工具收好了。",
+    "等你忙完我再換位置。"
+  ],
+  "papersprite-deluxe": [
+    "我輕輕飄過去一下。",
+    "這邊的空氣很安靜。",
+    "我會避開表格中間。",
+    "剛剛那個名字讀起來舒服。",
+    "我把紙角壓平了。",
+    "慢慢整理也很好。",
+    "我在這裡剛好不擋字。",
+    "風有點小，我走路就好。",
+    "這張桌面很適合寫清單。",
+    "我剛剛看見一個很整齊的欄位。",
+    "今天不用趕。",
+    "我把小紙條收起來了。",
+    "預覽表看起來滿清楚的。",
+    "我喜歡這種柔柔的背景。",
+    "我先坐在邊邊。"
+  ],
+  "archivecube-deluxe": [
+    "我先待在這個格子旁邊。",
+    "這裡很穩，適合觀察。",
+    "我會慢慢移動。",
+    "剛剛那段路徑很清楚。",
+    "我把角落留乾淨。",
+    "有些檔名真的需要好好整理。",
+    "我剛剛沒有撞到表格。",
+    "這個位置很安全。",
+    "我喜歡一列一列看。",
+    "先放慢一點比較不容易出錯。",
+    "我把小方塊對齊了。",
+    "今天的工作區很穩。",
+    "我會避開主要按鈕。",
+    "這裡剛好能看到狀態。",
+    "我慢慢走，不晃。"
+  ],
+  "pixelplant-deluxe": [
+    "我在這裡曬一點光。",
+    "剛剛那一步很順。",
+    "我會慢慢長，不會擋路。",
+    "這邊有一點安靜。",
+    "我把葉子收好一點。",
+    "整理檔名像修剪枝葉。",
+    "我先待在桌角。",
+    "今天背景看起來很舒服。",
+    "我會輕輕走過去。",
+    "狀態穩定時很適合工作。",
+    "我剛剛冒了一點小芽。",
+    "慢慢來，畫面會更清楚。",
+    "我喜歡這個光線。",
+    "這裡不會擋到按鈕。",
+    "我陪你把這批弄完。"
+  ],
+  folderling: [
+    "我先站在邊邊。",
+    "這裡剛好不擋路。",
+    "我會慢慢走。",
+    "剛剛那列滿整齊的。",
+    "重設聽起來安心多了。",
+    "我喜歡簡單清楚的字。",
+    "先看預覽比較穩。",
+    "我在旁邊陪你一下。",
+    "這個角落很適合我。",
+    "我不會亂踩按鈕。",
+    "整理完會很好找。",
+    "我把標籤扶正了。",
+    "今天步伐很穩。",
+    "我先休息一下。",
+    "畫面清楚就好。"
+  ],
+  staplebot: [
+    "喀，我在這裡。",
+    "我會小聲一點。",
+    "這一步很穩。",
+    "我先別亂跑。",
+    "按鈕顏色一致看起來舒服。",
+    "我在旁邊巡一下。",
+    "剛剛差點踩到格線。",
+    "慢慢檢查比較好。",
+    "我把小零件收好了。",
+    "這裡視野不錯。",
+    "OK 列看起來很明確。",
+    "我走到另一邊看看。",
+    "喀，狀態正常。",
+    "這個角落很安靜。",
+    "我會等你忙完。"
+  ],
+  papersprite: [
+    "我輕輕走過去。",
+    "這裡不太擋字。",
+    "我把紙角壓平了。",
+    "剛剛那行讀起來不錯。",
+    "先不吵你。",
+    "我在邊邊待一下。",
+    "完整路徑需要時再看就好。",
+    "畫面乾淨很多。",
+    "我喜歡這種留白。",
+    "慢慢整理也很好。",
+    "我剛剛翻了一下。",
+    "表格看起來滿清楚的。",
+    "我會避開中央。",
+    "這個位置剛剛好。",
+    "等一下再換地方。"
+  ],
+  archivecube: [
+    "我站穩了。",
+    "這個格子很適合我。",
+    "慢慢排比較整齊。",
+    "我不會滾太遠。",
+    "這裡可以看到狀態。",
+    "剛剛那個位置有點窄。",
+    "我換邊走一下。",
+    "整理資料要有耐心。",
+    "我把角落留出來。",
+    "OK 的感覺很明確。",
+    "我先待在這裡。",
+    "這一列看起來很穩。",
+    "我喜歡乾淨的路徑。",
+    "不要急，慢慢來。",
+    "我會避開主要流程。"
+  ],
+  pixelplant: [
+    "我在這裡長一下。",
+    "這邊光線不錯。",
+    "我會慢慢走。",
+    "剛剛冒了一點芽。",
+    "整理完會很清爽。",
+    "我先不擋你。",
+    "表格邊邊很適合散步。",
+    "這個位置剛好。",
+    "我把葉子收起來了。",
+    "慢慢檢查很重要。",
+    "今天背景很舒服。",
+    "我陪你做完這批。",
+    "我換到另一邊看看。",
+    "這裡很安靜。",
+    "小步走就好。"
+  ]
+};
+
+Object.assign(PET_DIALOGUES, HUMAN_PET_DIALOGUES);
 
 export const TRANSLATIONS = {
   "zh-TW": {
@@ -1157,6 +1356,12 @@ export const TRANSLATIONS = {
 
 const CATALOG_TRANSLATIONS = {
   "zh-TW": {
+    "settings.petMotion": "移動方式",
+    "pet.motion.smart": "合理移動",
+    "pet.motion.drift": "自由飄移",
+    "settings.petHint": "合理移動會讓寵物主要在地面或區塊邊緣行走，偶爾用任意門、竹蜻蜓或繩索移動；也可切回自由飄移。",
+    "pet.portalFileMender": "任意門文件修補師",
+    "pet.reaction.portal-file-mender": "文件修補師抬頭笑了一下。",
     "button.addFiles": "選取檔案",
     "button.clear": "重設",
     "hint.rename": "選擇來源資料夾可在 Chromium 取得執行權限；資料夾挑選視窗可能只顯示資料夾，若要挑特定檔案請用「選取檔案」。系統與暫存檔會自動略過。",
@@ -1221,6 +1426,12 @@ const CATALOG_TRANSLATIONS = {
     "theme.lamp": "夜燈"
   },
   "zh-CN": {
+    "settings.petMotion": "移动方式",
+    "pet.motion.smart": "合理移动",
+    "pet.motion.drift": "自由飘移",
+    "settings.petHint": "合理移动会让宠物主要在地面或区块边缘行走，偶尔用任意门、竹蜻蜓或绳索移动；也可切回自由飘移。",
+    "pet.portalFileMender": "任意门文件修补师",
+    "pet.reaction.portal-file-mender": "文件修补师抬头笑了一下。",
     "button.addFiles": "选择文件",
     "button.clear": "重置",
     "hint.rename": "选择来源文件夹可在 Chromium 取得执行权限；文件夹选择窗口可能只显示文件夹，若要挑特定文件请用“选择文件”。系统与临时文件会自动跳过。",
@@ -1285,6 +1496,12 @@ const CATALOG_TRANSLATIONS = {
     "theme.lamp": "夜灯"
   },
   en: {
+    "settings.petMotion": "Movement style",
+    "pet.motion.smart": "Grounded movement",
+    "pet.motion.drift": "Free drift",
+    "settings.petHint": "Grounded movement keeps the pet walking on the floor or panel ledges, with occasional portal, bamboo-copter, or rope transitions. Free drift keeps the older roaming style.",
+    "pet.portalFileMender": "Portal File Mender",
+    "pet.reaction.portal-file-mender": "Portal File Mender looks up and smiles.",
     "button.addFiles": "Select files",
     "button.clear": "Reset",
     "hint.rename": "Pick source folder grants execution permission in Chromium; that folder picker may show folders only. Use Select files for specific files. System and temp files are skipped automatically.",
@@ -1349,6 +1566,12 @@ const CATALOG_TRANSLATIONS = {
     "theme.lamp": "Night Lamp"
   },
   ja: {
+    "settings.petMotion": "移動方式",
+    "pet.motion.smart": "自然に移動",
+    "pet.motion.drift": "自由に漂う",
+    "settings.petHint": "自然に移動では、ペットは床やパネルの端を歩き、たまにどこでもドア、竹コプター、ロープで移動します。従来の自由移動にも切り替えられます。",
+    "pet.portalFileMender": "どこでもドア書類修理屋",
+    "pet.reaction.portal-file-mender": "書類修理屋が顔を上げて笑いました。",
     "button.addFiles": "ファイルを選択",
     "button.clear": "リセット",
     "hint.rename": "元フォルダーを選ぶと Chromium で実行権限を取得できます。このフォルダー選択画面はフォルダーだけを表示する場合があります。個別ファイルは「ファイルを選択」を使います。システムファイルと一時ファイルは自動で除外します。",
@@ -1431,7 +1654,8 @@ export function normalizeSettings(input = {}) {
     template: hasId(TEMPLATES, input.template) ? input.template : DEFAULT_SETTINGS.template,
     theme: hasId(THEMES, input.theme) ? input.theme : DEFAULT_SETTINGS.theme,
     petEnabled: typeof input.petEnabled === "boolean" ? input.petEnabled : DEFAULT_SETTINGS.petEnabled,
-    petType: hasId(PETS, input.petType) ? input.petType : DEFAULT_SETTINGS.petType
+    petType: hasId(PETS, input.petType) ? input.petType : DEFAULT_SETTINGS.petType,
+    petMotion: hasId(PET_MOTION_MODES, input.petMotion) ? input.petMotion : DEFAULT_SETTINGS.petMotion
   };
 }
 

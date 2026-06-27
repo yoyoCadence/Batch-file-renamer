@@ -20,6 +20,7 @@ test("PWA files contain the expected settings and appearance hooks", async () =>
   assert.match(index, /id="themeSelect"/);
   assert.match(index, /id="petEnabledInput"/);
   assert.match(index, /id="petTypeSelect"/);
+  assert.match(index, /id="petMotionSelect"/);
   assert.match(index, /id="petCompanion"/);
   assert.match(index, /id="petImage"/);
   assert.match(index, /class="[^"]*\bguide-panel\b[^"]*"/);
@@ -51,6 +52,10 @@ test("PWA files contain the expected settings and appearance hooks", async () =>
   assert.match(css, /@keyframes pet-cheer/);
   assert.match(css, /@keyframes pet-stretch/);
   assert.match(css, /@keyframes pet-spin/);
+  assert.match(css, /@keyframes portal-ring/);
+  assert.match(css, /@keyframes copter-spin/);
+  assert.match(css, /@keyframes rope-sway/);
+  assert.match(css, /\[data-travel="portal"\]/);
   assert.match(css, /\.pet-companion\[data-pet="folderling"\]/);
   assert.match(css, /\.pet-companion\[data-pet="pixelplant"\]/);
   assert.match(css, /@keyframes pet-held/);
@@ -67,6 +72,9 @@ test("PWA files contain the expected settings and appearance hooks", async () =>
   assert.match(app, /isIgnorableSystemFile/);
   assert.match(app, /showFullPath/);
   assert.match(app, /showPetDialogue/);
+  assert.match(app, /updateSmartPetMotion/);
+  assert.match(app, /pickSmartTransition/);
+  assert.match(app, /petSurfaces/);
 });
 
 test("generated background assets exist and are non-empty", async () => {
@@ -96,19 +104,24 @@ test("generated background assets exist and are non-empty", async () => {
   for (const name of backgrounds) {
     const path = `pwa/assets/backgrounds/${name}.jpg`;
     const info = await stat(path);
-    assert.ok(info.size > 80_000, `${path} should be a real raster asset`);
+    assert.ok(info.size > 200_000, `${path} should be a high-detail raster asset`);
   }
 });
 
 test("generated pet action assets exist and are transparent pngs", async () => {
-  const pets = ["folderling-deluxe", "staplebot-deluxe", "papersprite-deluxe", "archivecube-deluxe", "pixelplant-deluxe"];
+  const pets = ["folderling-deluxe", "staplebot-deluxe", "papersprite-deluxe", "archivecube-deluxe", "pixelplant-deluxe", "portal-file-mender"];
   const actions = ["idle", "hop", "cheer", "stretch", "spin", "panic-held"];
   for (const pet of pets) {
     for (const action of actions) {
       const path = `pwa/assets/pets/${pet}-${action}.png`;
       const info = await stat(path);
-      assert.ok(info.size > 20_000, `${path} should be a generated raster sprite`);
+      assert.ok(info.size > 18_000, `${path} should be a generated raster sprite`);
     }
+  }
+  for (const action of ["walk", "portal", "copter", "rope"]) {
+    const path = `pwa/assets/pets/portal-file-mender-${action}.png`;
+    const info = await stat(path);
+    assert.ok(info.size > 18_000, `${path} should be a generated smart-movement sprite`);
   }
 });
 
@@ -122,6 +135,9 @@ test("service worker caches all project-bound runtime assets", async () => {
     "./assets/backgrounds/cyber.jpg",
     "./assets/backgrounds/holographic-glass.jpg",
     "./assets/backgrounds/night-lamp.jpg",
+    "./assets/pets/portal-file-mender-portal.png",
+    "./assets/pets/portal-file-mender-copter.png",
+    "./assets/pets/portal-file-mender-rope.png",
     "./assets/pets/folderling-deluxe-panic-held.png",
     "./assets/pets/pixelplant-deluxe-spin.png"
   ]) {

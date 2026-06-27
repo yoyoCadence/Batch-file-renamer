@@ -58,3 +58,12 @@ Use this file as the lightweight task board for this project unless the project 
   - Changed preview source wording to current filename, with hover full-path titles and an optional full-path display toggle.
   - Expanded generated background templates and color themes to 20+ selectable styles.
   - Added comic-style pet thought bubbles with 15 non-question lines per pet.
+- [x] T022 - Replace blurry atlas-derived backgrounds with high-detail single-image templates.
+  - Regenerated every selectable background as a standalone 16:9 raster image instead of cropping from a 5x4 atlas.
+  - Replaced all project-bound background JPGs, including the default Anime Desk and Material Studio templates.
+  - Raised static test coverage so backgrounds must remain high-detail assets.
+- [x] T023 - Prototype the grounded smart pet movement system.
+  - Added the generated Portal File Mender pet with idle, walk, portal, bamboo-copter, rope, and panic-held poses.
+  - Added a settings toggle between grounded movement and the legacy free-drift movement.
+  - Implemented floor/panel-ledge walking with portal, copter, and rope transitions.
+  - Rewrote pet dialogue lines to sound more natural and less like UI/tool explanations.

@@ -1,4 +1,4 @@
-const CACHE_NAME = "batch-file-renamer-v4";
+const CACHE_NAME = "batch-file-renamer-v5";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -29,6 +29,16 @@ const APP_SHELL = [
   "./assets/backgrounds/monochrome-ink.jpg",
   "./assets/backgrounds/holographic-glass.jpg",
   "./assets/backgrounds/night-lamp.jpg",
+  "./assets/pets/portal-file-mender-idle.png",
+  "./assets/pets/portal-file-mender-walk.png",
+  "./assets/pets/portal-file-mender-portal.png",
+  "./assets/pets/portal-file-mender-copter.png",
+  "./assets/pets/portal-file-mender-rope.png",
+  "./assets/pets/portal-file-mender-panic-held.png",
+  "./assets/pets/portal-file-mender-hop.png",
+  "./assets/pets/portal-file-mender-cheer.png",
+  "./assets/pets/portal-file-mender-stretch.png",
+  "./assets/pets/portal-file-mender-spin.png",
   "./assets/pets/folderling-deluxe-idle.png",
   "./assets/pets/folderling-deluxe-hop.png",
   "./assets/pets/folderling-deluxe-cheer.png",
