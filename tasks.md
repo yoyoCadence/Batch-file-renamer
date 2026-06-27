@@ -77,3 +77,8 @@ Use this file as the lightweight task board for this project unless the project 
   - Added an update banner with localized copy and an Update now action.
   - Registered service worker update checks on app startup and hourly while the app is open.
   - Documented the cache update behavior in all README language versions.
+- [x] T026 - Fix grounded pet direction, platform eligibility, and speech bubble anchoring.
+  - Corrected Portal File Mender's visual facing because its generated walk sprite faces left by default.
+  - Limited panel/ledge travel to Portal File Mender; other pets now stay on the floor in grounded mode.
+  - Stopped mirroring the full pet container so the speech bubble remains close to the character when walking left.
+  - Added static regression checks for smart-travel gating and bubble transform behavior.

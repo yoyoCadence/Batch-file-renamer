@@ -1224,6 +1224,7 @@ tr[data-status="done"] {
   height: 108px;
   object-fit: contain;
   pointer-events: none;
+  transform: scaleX(var(--pet-facing, 1));
   animation: pet-walk 1.8s ease-in-out infinite;
 }
 

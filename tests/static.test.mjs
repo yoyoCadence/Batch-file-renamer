@@ -49,6 +49,8 @@ test("PWA files contain the expected settings and appearance hooks", async () =>
   assert.match(css, /\.preview-options/);
   assert.match(css, /\.update-banner/);
   assert.match(css, /\.pet-image/);
+  assert.match(css, /--pet-facing/);
+  assert.doesNotMatch(css, /\.pet-bubble[^{]*\{[^}]*scaleX/s);
   assert.match(css, /\.pet-bubble::after/);
   assert.match(css, /\[data-action="panic-held"\]/);
   assert.match(css, /@keyframes pet-hop/);
@@ -78,6 +80,12 @@ test("PWA files contain the expected settings and appearance hooks", async () =>
   assert.match(app, /updateSmartPetMotion/);
   assert.match(app, /pickSmartTransition/);
   assert.match(app, /petSurfaces/);
+  assert.match(app, /canUseSmartTravel/);
+  assert.match(app, /spriteFacingScale/);
+  assert.match(app, /portal-file-mender/);
+  assert.match(app, /petSurfaces\(allowPanels = canUseSmartTravel\(\)\)/);
+  assert.match(app, /state\.settings\.petType === "portal-file-mender"/);
+  assert.doesNotMatch(app, /petCompanion\.style\.transform = `translate\(\$\\{state\.pet\.x}px, \$\\{state\.pet\.y}px\) scaleX/);
   assert.match(app, /registerServiceWorker/);
   assert.match(app, /showUpdateAvailable/);
   assert.match(app, /SKIP_WAITING/);

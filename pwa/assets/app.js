@@ -1121,7 +1121,7 @@ function updatePet() {
   els.petCompanion.setAttribute("aria-label", tKey(state.settings.petType ? `pet.${state.settings.petType}` : "settings.pet"));
   if (enabled) {
     if (state.settings.petMotion === "smart") {
-      snapPetToSurface();
+      snapPetToSurface(canUseSmartTravel());
       chooseSmartWalkTarget(performance.now(), true);
     } else {
       clampPetPosition();
@@ -1185,7 +1185,7 @@ function updateSmartPetMotion(time, delta) {
   if (time >= state.pet.nextActionAt) {
     const destination = pickSmartDestination();
     const sameSurface = Math.abs(destination.y - state.pet.surfaceY) < 4;
-    if (!sameSurface) {
+    if (!sameSurface && canUseSmartTravel()) {
       startSmartTransition(pickSmartTransition(), destination, time);
       scheduleNextPetAction(time);
       return;
@@ -1216,7 +1216,7 @@ function chooseSmartWalkTarget(time, soon = false) {
 }
 
 function pickSmartDestination() {
-  const surfaces = petSurfaces();
+  const surfaces = petSurfaces(canUseSmartTravel());
   const currentY = state.pet.surfaceY || nearestPetSurface().y;
   const otherSurfaces = surfaces.filter((surface) => Math.abs(surface.y - currentY) > 24);
   const surface = otherSurfaces.length > 0 && Math.random() < 0.52
@@ -1382,7 +1382,7 @@ function petBounds() {
   };
 }
 
-function petSurfaces() {
+function petSurfaces(allowPanels = canUseSmartTravel()) {
   const size = 92;
   const bounds = petBounds();
   const surfaces = [{
@@ -1391,6 +1391,10 @@ function petSurfaces() {
     maxX: bounds.maxX,
     y: bounds.maxY
   }];
+
+  if (!allowPanels) {
+    return surfaces;
+  }
 
   document.querySelectorAll(".panel").forEach((panel, index) => {
     const rect = panel.getBoundingClientRect();
@@ -1405,15 +1409,15 @@ function petSurfaces() {
   return surfaces;
 }
 
-function nearestPetSurface() {
-  const surfaces = petSurfaces();
+function nearestPetSurface(allowPanels = canUseSmartTravel()) {
+  const surfaces = petSurfaces(allowPanels);
   return surfaces.reduce((closest, surface) => {
     return Math.abs(surface.y - state.pet.y) < Math.abs(closest.y - state.pet.y) ? surface : closest;
   }, surfaces[0]);
 }
 
-function snapPetToSurface() {
-  const surface = nearestPetSurface();
+function snapPetToSurface(allowPanels = canUseSmartTravel()) {
+  const surface = allowPanels ? nearestPetSurface(true) : petSurfaces(false)[0];
   state.pet.surfaceY = surface.y;
   state.pet.y = surface.y;
   state.pet.x = Math.max(surface.minX, Math.min(surface.maxX, state.pet.x));
@@ -1421,8 +1425,16 @@ function snapPetToSurface() {
 
 function renderPetPosition() {
   const direction = state.pet.facing || (state.pet.vx < 0 ? -1 : 1);
-  els.petCompanion.style.transform = `translate(${state.pet.x}px, ${state.pet.y}px) scaleX(${direction})`;
-  els.petBubble.style.transform = `scaleX(${direction})`;
+  els.petCompanion.style.transform = `translate(${state.pet.x}px, ${state.pet.y}px)`;
+  els.petCompanion.style.setProperty("--pet-facing", String(spriteFacingScale(direction)));
+}
+
+function canUseSmartTravel() {
+  return state.settings.petType === "portal-file-mender";
+}
+
+function spriteFacingScale(direction) {
+  return state.settings.petType === "portal-file-mender" ? -direction : direction;
 }
 
 function randomBetween(min, max) {
@@ -1474,7 +1486,7 @@ function endPetDrag(event) {
   els.petCompanion.classList.remove("is-held");
   delete els.petCompanion.dataset.travel;
   if (state.settings.petMotion === "smart") {
-    snapPetToSurface();
+    snapPetToSurface(canUseSmartTravel());
     chooseSmartWalkTarget(performance.now(), true);
   }
   setPetAction("idle");
