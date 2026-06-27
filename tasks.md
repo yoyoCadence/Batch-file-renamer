@@ -67,3 +67,8 @@ Use this file as the lightweight task board for this project unless the project 
   - Added a settings toggle between grounded movement and the legacy free-drift movement.
   - Implemented floor/panel-ledge walking with portal, copter, and rope transitions.
   - Rewrote pet dialogue lines to sound more natural and less like UI/tool explanations.
+- [x] T024 - Rewrite README as switchable Traditional Chinese, English, and Japanese documentation.
+  - Made `README.md` the Traditional Chinese landing document with language-switch links.
+  - Added `README.en.md` and `README.ja.md` with matching structure.
+  - Reworked copy to lead with user value, safety cues, and clear workflow before technical architecture.
+  - Preserved technical details for PWA structure, File System Access API limits, tests, deployment, and legacy source.
