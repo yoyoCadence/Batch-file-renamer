@@ -11,5 +11,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `LPT1`–`LPT9`) or that end in a dot or space are now flagged as blocked rows
   ("Reserved name" / "Trailing dot or space") and excluded from execution.
   Localized in Traditional Chinese, Simplified Chinese, English, and Japanese.
-- Playwright browser verification (`npm run test:e2e`) covering the app shell load
-  and the reserved-name preview flow in Chromium.
+- Undo last batch (T028): after a rename batch, an "Undo last batch" button reverses
+  the renames and restores the original filenames behind a confirmation prompt.
+  Available in all four languages; copy-only batches do not create an undo entry.
+- Playwright browser verification (`npm run test:e2e`) covering the app shell load,
+  the reserved-name preview flow, and a full execute -> undo round trip in Chromium.

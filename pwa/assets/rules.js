@@ -300,6 +300,17 @@ export function validateRows(rows, options = {}) {
   });
 }
 
+// Given the renames a batch performed ({ from, to } where a file moved from `from` to `to`,
+// plus any extra fields such as a directory handle), return the operations that reverse them,
+// newest first, so applying them in order restores the original names.
+export function planUndoOperations(renames = []) {
+  return [...renames].reverse().map((rename) => ({
+    ...rename,
+    from: rename.to,
+    to: rename.from
+  }));
+}
+
 export function rowsToCsv(rows) {
   const columns = ["Action", "SourceName", "SourcePath", "TargetName", "TargetFolder", "TargetPath", "Status"];
   const lines = [columns.join(",")];
