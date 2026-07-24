@@ -145,6 +145,15 @@ const els = {
   seqStepField: $("seqStepField"),
   padField: $("padField"),
   listField: $("listField"),
+  valueModeField: $("valueModeField"),
+  findField: $("findField"),
+  replaceField: $("replaceField"),
+  regexField: $("regexField"),
+  caseField: $("caseField"),
+  findInput: $("findInput"),
+  replaceInput: $("replaceInput"),
+  useRegexInput: $("useRegexInput"),
+  caseInsensitiveInput: $("caseInsensitiveInput"),
   sampleOutput: $("sampleOutput"),
   addRuleButton: $("addRuleButton"),
   clearRulesButton: $("clearRulesButton"),
@@ -210,7 +219,11 @@ function init() {
     els.staticInput,
     els.seqStartInput,
     els.seqStepInput,
-    els.padInput
+    els.padInput,
+    els.findInput,
+    els.replaceInput,
+    els.useRegexInput,
+    els.caseInsensitiveInput
   ].forEach((control) => control.addEventListener("input", updateRuleControls));
 
   els.addRuleButton.addEventListener("click", addRule);
@@ -673,20 +686,27 @@ function clearCopySetup() {
 }
 
 function updateRuleControls() {
-  const isSegment = els.targetSelect.value === "Segment";
+  const target = els.targetSelect.value;
+  const isReplace = target === "Replace";
+  const isSegment = target === "Segment";
   const mode = els.valueModeSelect.value;
   const isSequence = mode === "SeqUp" || mode === "SeqDown";
 
-  els.directionField.hidden = !isSegment;
-  els.delimiterField.hidden = !isSegment;
-  els.segmentField.hidden = !isSegment;
-  els.charStartField.hidden = isSegment;
-  els.charLengthField.hidden = isSegment;
-  els.staticField.hidden = mode !== "Static";
-  els.listField.hidden = mode !== "List";
-  els.seqStartField.hidden = !isSequence;
-  els.seqStepField.hidden = !isSequence;
-  els.padField.hidden = !isSequence;
+  els.directionField.hidden = isReplace || !isSegment;
+  els.delimiterField.hidden = isReplace || !isSegment;
+  els.segmentField.hidden = isReplace || !isSegment;
+  els.charStartField.hidden = isReplace || isSegment;
+  els.charLengthField.hidden = isReplace || isSegment;
+  els.valueModeField.hidden = isReplace;
+  els.staticField.hidden = isReplace || mode !== "Static";
+  els.listField.hidden = isReplace || mode !== "List";
+  els.seqStartField.hidden = isReplace || !isSequence;
+  els.seqStepField.hidden = isReplace || !isSequence;
+  els.padField.hidden = isReplace || !isSequence;
+  els.findField.hidden = !isReplace;
+  els.replaceField.hidden = !isReplace;
+  els.regexField.hidden = !isReplace;
+  els.caseField.hidden = !isReplace;
   renderSample();
 }
 
@@ -710,7 +730,11 @@ function readRuleForm() {
     staticValue: els.staticInput.value,
     seqStart: Number.parseInt(els.seqStartInput.value, 10),
     seqStep: Number.parseInt(els.seqStepInput.value, 10),
-    pad: Number.parseInt(els.padInput.value, 10)
+    pad: Number.parseInt(els.padInput.value, 10),
+    find: els.findInput.value,
+    replaceWith: els.replaceInput.value,
+    useRegex: els.useRegexInput.checked,
+    caseInsensitive: els.caseInsensitiveInput.checked
   };
 }
 
@@ -1576,7 +1600,21 @@ function renderSample() {
   const ext = getFileName(sample).slice(base.length);
   const target = els.targetSelect.value;
 
-  if (target === "Segment") {
+  if (target === "Replace") {
+    const find = els.findInput.value;
+    if (find) {
+      try {
+        const flags = `g${els.caseInsensitiveInput.checked ? "i" : ""}`;
+        const pattern = els.useRegexInput.checked
+          ? new RegExp(find, flags)
+          : new RegExp(find.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), flags);
+        els.sampleOutput.textContent = base.replace(pattern, els.replaceInput.value) + ext;
+        return;
+      } catch {
+        // Invalid regex while typing; fall back to the raw sample below.
+      }
+    }
+  } else if (target === "Segment") {
     const delimiter = els.delimiterInput.value;
     const parts = delimiter ? base.split(delimiter) : [base];
     const segmentNo = Number.parseInt(els.segmentInput.value, 10) || 1;
@@ -1614,6 +1652,13 @@ function summarizeRows() {
 }
 
 function describeRule(rule) {
+  if (rule.target === "Replace") {
+    return tKey("desc.replace", {
+      find: rule.find,
+      replaceWith: rule.replaceWith,
+      mode: tKey(rule.useRegex ? "desc.regexOn" : "desc.regexOff")
+    });
+  }
   const target = rule.target === "Segment"
     ? tKey("desc.segment", {
       delimiter: rule.delimiter,

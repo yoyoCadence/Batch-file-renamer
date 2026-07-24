@@ -1,7 +1,7 @@
 const INVALID_FILENAME_RE = /[<>:"/\\|?*\x00-\x1f]/g;
 
 export const VALUE_MODES = ["Static", "List", "SeqUp", "SeqDown", "Delete"];
-export const TARGETS = ["Segment", "Character"];
+export const TARGETS = ["Segment", "Character", "Replace"];
 
 export function parseValueLines(text = "") {
   const lines = String(text).split(/\r?\n/);
@@ -104,6 +104,12 @@ export function applyRulesToName(fileName, rules = [], rowIndex = 0, valueLines 
 
   for (const rule of rules) {
     const target = rule.target || rule.Target || "Segment";
+
+    if (target === "Replace") {
+      base = applyReplace(base, rule);
+      continue;
+    }
+
     let value = cleanPart(ruleValue(rule, rowIndex, valueLines));
 
     if (target === "Segment") {
@@ -151,6 +157,27 @@ export function applyRulesToName(fileName, rules = [], rowIndex = 0, valueLines 
   }
 
   return `${base}${ext}`;
+}
+
+// Find-and-replace on the base name. `find` is treated literally unless `useRegex`
+// is set; replacement always applies to every match (global) and is cleaned so it
+// cannot introduce invalid filename characters.
+function applyReplace(base, rule) {
+  const find = String(rule.find ?? rule.Find ?? "");
+  if (find === "") {
+    throw new Error("Find text cannot be empty");
+  }
+  const replacement = cleanPart(String(rule.replaceWith ?? rule.ReplaceWith ?? ""));
+  const useRegex = Boolean(rule.useRegex ?? rule.UseRegex);
+  const flags = `g${(rule.caseInsensitive ?? rule.CaseInsensitive) ? "i" : ""}`;
+  const source = useRegex ? find : find.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  let pattern;
+  try {
+    pattern = new RegExp(source, flags);
+  } catch (error) {
+    throw new Error(`Invalid regular expression: ${error.message}`);
+  }
+  return base.replace(pattern, replacement);
 }
 
 export function buildPreviewRows(options) {

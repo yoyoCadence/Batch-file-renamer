@@ -194,6 +194,29 @@ test("undo-last-batch wiring and localized labels are present", async () => {
   assert.equal((settings.match(/"status\.undoConfirm":/g) || []).length, 4);
 });
 
+test("find-and-replace rule mode is wired and localized", async () => {
+  const rules = await readFile("pwa/assets/rules.js", "utf8");
+  assert.match(rules, /"Segment", "Character", "Replace"/);
+  assert.match(rules, /function applyReplace/);
+
+  const index = await readFile("pwa/index.html", "utf8");
+  assert.match(index, /value="Replace"/);
+  assert.match(index, /id="findInput"/);
+  assert.match(index, /id="replaceInput"/);
+  assert.match(index, /id="useRegexInput"/);
+  assert.match(index, /id="caseInsensitiveInput"/);
+
+  const app = await readFile("pwa/assets/app.js", "utf8");
+  assert.match(app, /useRegex: els\.useRegexInput\.checked/);
+  assert.match(app, /rule\.target === "Replace"/);
+
+  const settings = await readFile("pwa/assets/settings.js", "utf8");
+  // Each of the 4 languages must localize the replace option, fields, and description.
+  assert.equal((settings.match(/"option\.replace":/g) || []).length, 4);
+  assert.equal((settings.match(/"field\.find":/g) || []).length, 4);
+  assert.equal((settings.match(/"desc\.replace":/g) || []).length, 4);
+});
+
 test("text files do not contain unresolved merge markers", async () => {
   for (const path of textFiles) {
     const text = await readFile(path, "utf8");
