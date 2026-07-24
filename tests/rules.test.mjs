@@ -131,6 +131,25 @@ assert.deepEqual(undoOps, [
 ]);
 assert.deepEqual(planUndoOperations([]), []);
 
+// Find-and-replace rule mode.
+assert.equal(
+  applyRulesToName("report-draft-v1.pdf", [{ target: "Replace", find: "draft", replaceWith: "final" }], 0, []),
+  "report-final-v1.pdf"
+);
+// Literal find replaces every occurrence and treats regex metacharacters literally.
+assert.equal(applyRulesToName("a-a-a.txt", [{ target: "Replace", find: "a", replaceWith: "b" }], 0, []), "b-b-b.txt");
+assert.equal(applyRulesToName("a.b.txt", [{ target: "Replace", find: ".", replaceWith: "_" }], 0, []), "a_b.txt");
+// Regex mode with case-insensitive flag and a capture group.
+assert.equal(
+  applyRulesToName("IMG1234.jpg", [{ target: "Replace", find: "img(\\d+)", replaceWith: "photo$1", useRegex: true, caseInsensitive: true }], 0, []),
+  "photo1234.jpg"
+);
+// Replacement is cleaned so it cannot introduce invalid filename characters.
+assert.equal(applyRulesToName("a-b.txt", [{ target: "Replace", find: "-", replaceWith: "/" }], 0, []), "a_b.txt");
+// Empty find and invalid regex are surfaced as errors.
+assert.throws(() => applyRulesToName("x.txt", [{ target: "Replace", find: "" }], 0, []));
+assert.throws(() => applyRulesToName("x.txt", [{ target: "Replace", find: "(", useRegex: true }], 0, []));
+
 const errorPreview = buildPreviewRows({
   mode: "rename",
   sources: [{ name: "short.txt", path: "Source/short.txt", folder: "Source", key: "short" }],

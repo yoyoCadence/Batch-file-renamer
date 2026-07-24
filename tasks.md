@@ -8,7 +8,6 @@ Use this file as the lightweight task board for this project unless the project 
 
 ## Backlog
 
-- [ ] T029 - Add a find-and-replace rule mode (literal + regex) to the rule engine with focused unit tests.
 - [ ] T030 - Add a case-transform rule mode (UPPERCASE / lowercase / Title Case) with unit tests.
 - [ ] T031 - Support date/time tokens (e.g. {yyyy-MM-dd}) inside Static rule values.
 - [ ] T032 - Allow individual rules to be enabled/disabled and reordered (drag) instead of remove-only.
@@ -101,3 +100,7 @@ Use this file as the lightweight task board for this project unless the project 
   - `executeRows` now records successful renames as `{ from, to, directoryHandle }` in `state.lastBatch`; a new "Undo last batch" button (hidden until a rename batch runs) reverses them behind a confirm dialog. Copy-only batches clear any prior undo.
   - Localized the button label and undo status messages across all four languages.
   - Added a `planUndoOperations` unit test and static wiring checks, plus a Playwright test that injects a fake File System Access API and verifies a real execute -> undo round trip restores the original filenames.
+- [x] T029 - Add a find-and-replace rule mode (literal + regex) to the rule engine.
+  - Added a "Replace" target with an internal `applyReplace` helper to `pwa/assets/rules.js`: literal matches are regex-escaped, regex mode is opt-in, replacement is always global and cleaned of invalid filename characters, and invalid patterns / empty find surface as row errors.
+  - Added Find / Replace with / Use regex / Ignore case fields to the rule builder, wired through `updateRuleControls`, `readRuleForm`, `describeRule`, and the live sample, localized across all four languages.
+  - Added rule-engine unit tests (literal, global, escaping, regex + capture group + case-insensitive, cleaned replacement, error cases), static wiring checks, and Playwright tests for literal and regex replacement in the preview.

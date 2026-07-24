@@ -108,6 +108,7 @@
                 <select id="targetSelect">
                   <option value="Segment" data-i18n="option.segment">段落</option>
                   <option value="Character" data-i18n="option.character">字元</option>
+                  <option value="Replace" data-i18n="option.replace">取代</option>
                 </select>
               </label>
               <label id="directionField">
@@ -133,7 +134,7 @@
                 <span data-i18n="field.charLength">字元長度</span>
                 <input id="charLengthInput" type="number" min="0" value="0">
               </label>
-              <label>
+              <label id="valueModeField">
                 <span data-i18n="field.valueMode">值模式</span>
                 <select id="valueModeSelect">
                   <option value="Static" data-i18n="option.static">固定值</option>
@@ -158,6 +159,22 @@
               <label id="padField" hidden>
                 <span data-i18n="field.pad">補零</span>
                 <input id="padInput" type="number" min="0" value="3">
+              </label>
+              <label id="findField" hidden>
+                <span data-i18n="field.find">尋找</span>
+                <input id="findInput" type="text">
+              </label>
+              <label id="replaceField" hidden>
+                <span data-i18n="field.replaceWith">取代為</span>
+                <input id="replaceInput" type="text">
+              </label>
+              <label id="regexField" class="toggle-row" hidden>
+                <input id="useRegexInput" type="checkbox">
+                <span data-i18n="field.useRegex">使用正規表達式</span>
+              </label>
+              <label id="caseField" class="toggle-row" hidden>
+                <input id="caseInsensitiveInput" type="checkbox">
+                <span data-i18n="field.caseInsensitive">忽略大小寫</span>
               </label>
             </div>
 
