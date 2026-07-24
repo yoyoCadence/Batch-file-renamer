@@ -70,13 +70,39 @@ export function cleanPart(value) {
   return String(value ?? "").replace(INVALID_FILENAME_RE, "_");
 }
 
-export function ruleValue(rule, rowIndex, valueLines = []) {
+const DATE_TOKEN_RE = /\{([^{}]*)\}/g;
+
+// Expand {yyyy-MM-dd HH:mm:ss}-style date tokens using a single timestamp so every row
+// in a batch shares the same value. Only `{...}` groups that contain a recognized token
+// are expanded; any other braced text is left untouched.
+export function expandDateTokens(text, now = new Date()) {
+  return String(text ?? "").replace(DATE_TOKEN_RE, (match, pattern) => {
+    const replaced = formatDatePattern(pattern, now);
+    return replaced === pattern ? match : replaced;
+  });
+}
+
+function formatDatePattern(pattern, now) {
+  const pad = (value, length = 2) => String(value).padStart(length, "0");
+  const parts = {
+    yyyy: String(now.getFullYear()),
+    yy: pad(now.getFullYear() % 100),
+    MM: pad(now.getMonth() + 1),
+    dd: pad(now.getDate()),
+    HH: pad(now.getHours()),
+    mm: pad(now.getMinutes()),
+    ss: pad(now.getSeconds())
+  };
+  return pattern.replace(/yyyy|yy|MM|dd|HH|mm|ss/g, (token) => parts[token]);
+}
+
+export function ruleValue(rule, rowIndex, valueLines = [], now = new Date()) {
   const mode = rule.valueMode || rule.ValueMode || "Static";
   if (mode === "Delete") {
     return "";
   }
   if (mode === "Static") {
-    return String(rule.staticValue ?? rule.StaticValue ?? "");
+    return expandDateTokens(String(rule.staticValue ?? rule.StaticValue ?? ""), now);
   }
   if (mode === "List") {
     if (rowIndex >= valueLines.length) {
@@ -99,7 +125,7 @@ export function ruleValue(rule, rowIndex, valueLines = []) {
   return text;
 }
 
-export function applyRulesToName(fileName, rules = [], rowIndex = 0, valueLines = []) {
+export function applyRulesToName(fileName, rules = [], rowIndex = 0, valueLines = [], now = new Date()) {
   const { base: originalBase, ext } = splitFilename(fileName);
   let base = originalBase;
 
@@ -116,7 +142,7 @@ export function applyRulesToName(fileName, rules = [], rowIndex = 0, valueLines 
       continue;
     }
 
-    let value = cleanPart(ruleValue(rule, rowIndex, valueLines));
+    let value = cleanPart(ruleValue(rule, rowIndex, valueLines, now));
 
     if (target === "Segment") {
       const delimiter = String(rule.delimiter ?? rule.Delimiter ?? "");
@@ -212,7 +238,8 @@ export function buildPreviewRows(options) {
     count = 1,
     rules = [],
     valueListText = "",
-    previousRows = []
+    previousRows = [],
+    now = new Date()
   } = options;
   const valueLines = parseValueLines(valueListText);
   const usesList = rules.some((rule) => (rule.valueMode || rule.ValueMode) === "List");
@@ -255,7 +282,7 @@ export function buildPreviewRows(options) {
 
     const rows = [];
     for (let index = 0; index < rowCount; index += 1) {
-      const result = applyNameResult(template.name, rules, index, valueLines);
+      const result = applyNameResult(template.name, rules, index, valueLines, now);
       rows.push(makePreviewRow({
         id: `copy-${Date.now()}-${index}`,
         action: "Copy",
@@ -291,7 +318,7 @@ export function buildPreviewRows(options) {
   }
 
   const rows = sources.map((source, index) => {
-    const result = applyNameResult(source.name, rules, index, valueLines);
+    const result = applyNameResult(source.name, rules, index, valueLines, now);
     return makePreviewRow({
       id: `rename-${source.key || source.name}-${index}`,
       action: "Rename",
@@ -402,10 +429,10 @@ export function parsePreviewCsv(text) {
   });
 }
 
-function applyNameResult(fileName, rules, index, valueLines) {
+function applyNameResult(fileName, rules, index, valueLines, now) {
   try {
     return {
-      targetName: applyRulesToName(fileName, rules, index, valueLines),
+      targetName: applyRulesToName(fileName, rules, index, valueLines, now),
       status: "OK"
     };
   } catch (error) {

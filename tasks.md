@@ -8,7 +8,6 @@ Use this file as the lightweight task board for this project unless the project 
 
 ## Backlog
 
-- [ ] T031 - Support date/time tokens (e.g. {yyyy-MM-dd}) inside Static rule values.
 - [ ] T032 - Allow individual rules to be enabled/disabled and reordered (drag) instead of remove-only.
 - [ ] T033 - Add a post-execution report / log CSV export capturing per-row success and failure.
 - [ ] T034 - Support drag-and-drop of files onto the app to add source files.
@@ -107,3 +106,7 @@ Use this file as the lightweight task board for this project unless the project 
   - Added a "Case" target with an internal `applyCaseTransform` helper to `pwa/assets/rules.js`; Title Case treats spaces, "-", "_", and "." as word boundaries and preserves the file extension.
   - Added a case-mode selector to the rule builder, wired through `updateRuleControls`, `readRuleForm`, `describeRule`, and the live sample, localized across all four languages.
   - Added rule-engine unit tests (upper / lower / title / default / error) plus static wiring checks and Playwright tests for Title Case and UPPERCASE in the preview.
+- [x] T031 - Support date/time tokens (e.g. {yyyy-MM-dd}) inside Static rule values.
+  - Added `expandDateTokens` to `pwa/assets/rules.js` (yyyy / yy / MM / dd / HH / mm / ss) and threaded a single `now` timestamp through `ruleValue`, `applyRulesToName`, and `buildPreviewRows` so every row in a batch shares one time; only `{...}` groups containing a recognized token are expanded.
+  - Added a localized token hint under the Static value field (`.field-hint`).
+  - Added unit tests (token formatting, batch threading, invalid-char cleaning), static wiring checks, and a Playwright test with a fixed clock; pinned Playwright to a single worker so the bundled static server is not starved under parallel load.

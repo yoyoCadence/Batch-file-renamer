@@ -6,6 +6,9 @@ export default defineConfig({
   testDir: "./tests/e2e",
   timeout: 30_000,
   fullyParallel: false,
+  // The bundled static file server is single-threaded; run specs serially so parallel
+  // workers don't starve it and time out. The suite is small and finishes in seconds.
+  workers: 1,
   reporter: [["list"]],
   use: {
     baseURL: `http://127.0.0.1:${PORT}`,

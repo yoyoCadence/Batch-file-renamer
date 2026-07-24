@@ -770,6 +770,7 @@ export const TRANSLATIONS = {
     "desc.regexOn": "正規表達式",
     "desc.regexOff": "純文字",
     "desc.case": "大小寫轉換（{mode}）。",
+    "hint.dateTokens": "固定值支援日期 token，例如 {yyyy-MM-dd}、{HH-mm-ss}。",
     "desc.sequence": "{mode}，起始 {start}，間距 {step}，補零 {pad}。"
   },
   "zh-CN": {
@@ -990,6 +991,7 @@ export const TRANSLATIONS = {
     "desc.regexOn": "正则表达式",
     "desc.regexOff": "纯文本",
     "desc.case": "大小写转换（{mode}）。",
+    "hint.dateTokens": "固定值支持日期 token，例如 {yyyy-MM-dd}、{HH-mm-ss}。",
     "desc.sequence": "{mode}，起始 {start}，间距 {step}，补零 {pad}。"
   },
   en: {
@@ -1210,6 +1212,7 @@ export const TRANSLATIONS = {
     "desc.regexOn": "regex",
     "desc.regexOff": "literal",
     "desc.case": "Case transform ({mode}).",
+    "hint.dateTokens": "Static values support date tokens, e.g. {yyyy-MM-dd}, {HH-mm-ss}.",
     "desc.sequence": "{mode} start {start}, step {step}, pad {pad}."
   },
   ja: {
@@ -1430,6 +1433,7 @@ export const TRANSLATIONS = {
     "desc.regexOn": "正規表現",
     "desc.regexOff": "リテラル",
     "desc.case": "大文字小文字変換（{mode}）。",
+    "hint.dateTokens": "固定値は日付トークンに対応、例：{yyyy-MM-dd}、{HH-mm-ss}。",
     "desc.sequence": "{mode}、開始 {start}、ステップ {step}、ゼロ埋め {pad}。"
   }
 };
