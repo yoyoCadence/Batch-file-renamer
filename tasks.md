@@ -8,6 +8,16 @@ Use this file as the lightweight task board for this project unless the project 
 
 ## Backlog
 
+- [ ] T028 - Add an "undo last batch" action that records old->new mappings on execute and can roll back the previous rename batch.
+- [ ] T029 - Add a find-and-replace rule mode (literal + regex) to the rule engine with focused unit tests.
+- [ ] T030 - Add a case-transform rule mode (UPPERCASE / lowercase / Title Case) with unit tests.
+- [ ] T031 - Support date/time tokens (e.g. {yyyy-MM-dd}) inside Static rule values.
+- [ ] T032 - Allow individual rules to be enabled/disabled and reordered (drag) instead of remove-only.
+- [ ] T033 - Add a post-execution report / log CSV export capturing per-row success and failure.
+- [ ] T034 - Support drag-and-drop of files onto the app to add source files.
+- [ ] T035 - Add named rule presets and remember the last-used rules/settings via localStorage.
+- [ ] T036 - Add preview-row filtering/search and batch exclusion of selected rows from execution.
+
 ## Done
 
 - [x] T000 - Initialize project context and initial task board from the project brief.
@@ -82,3 +92,8 @@ Use this file as the lightweight task board for this project unless the project 
   - Limited panel/ledge travel to Portal File Mender; other pets now stay on the floor in grounded mode.
   - Stopped mirroring the full pet container so the speech bubble remains close to the character when walking left.
   - Added static regression checks for smart-travel gating and bubble transform behavior.
+- [x] T027 - Add Windows reserved-name and trailing dot/space validation to the rule engine.
+  - Added `isReservedFilename`, `hasTrailingDotOrSpace`, and a `WINDOWS_RESERVED_NAMES` set to `pwa/assets/rules.js`, wired into `validateRows` as new "Reserved name" and "Trailing dot or space" blocked statuses.
+  - Localized both statuses across all four languages (zh-TW, zh-CN, en, ja) in `pwa/assets/settings.js`; the shared status legend already buckets unknown statuses as blocked/warn, so no `app.js` change was needed.
+  - Added rule-engine unit tests and a static i18n-completeness check (`npm run test`, 15 passing).
+  - Added Playwright browser verification (`npm run test:e2e`) that runs the shipped module in Chromium and drives the preview UI to show the reserved-name status for a `CON.*` target; service workers are blocked in tests to avoid the first-load self-reload wiping form state.

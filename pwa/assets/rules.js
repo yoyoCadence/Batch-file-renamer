@@ -47,6 +47,24 @@ export function hasInvalidFilenameChars(name) {
   return INVALID_FILENAME_RE.test(String(name));
 }
 
+// Windows reserves these device names regardless of extension (CON, CON.txt, ...).
+export const WINDOWS_RESERVED_NAMES = new Set([
+  "CON", "PRN", "AUX", "NUL",
+  "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+  "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"
+]);
+
+export function isReservedFilename(name) {
+  const fileName = getFileName(name);
+  const beforeDot = fileName.split(".")[0] || "";
+  return WINDOWS_RESERVED_NAMES.has(beforeDot.trim().toUpperCase());
+}
+
+// Windows silently strips a trailing dot or space, so a target ending in either is unsafe.
+export function hasTrailingDotOrSpace(name) {
+  return /[ .]$/.test(getFileName(name));
+}
+
 export function cleanPart(value) {
   return String(value ?? "").replace(INVALID_FILENAME_RE, "_");
 }
@@ -262,6 +280,10 @@ export function validateRows(rows, options = {}) {
       status = "Target name empty";
     } else if (hasInvalidFilenameChars(next.targetName)) {
       status = "Invalid filename";
+    } else if (isReservedFilename(next.targetName)) {
+      status = "Reserved name";
+    } else if (hasTrailingDotOrSpace(next.targetName)) {
+      status = "Trailing dot or space";
     } else if (next.action === "Rename" && normalizePathKey(next.sourcePath) === normalizePathKey(targetPath)) {
       status = "No change";
     } else if (next.targetExists || existingTargets.has(normalizePathKey(targetPath))) {
