@@ -8,7 +8,6 @@ Use this file as the lightweight task board for this project unless the project 
 
 ## Backlog
 
-- [ ] T030 - Add a case-transform rule mode (UPPERCASE / lowercase / Title Case) with unit tests.
 - [ ] T031 - Support date/time tokens (e.g. {yyyy-MM-dd}) inside Static rule values.
 - [ ] T032 - Allow individual rules to be enabled/disabled and reordered (drag) instead of remove-only.
 - [ ] T033 - Add a post-execution report / log CSV export capturing per-row success and failure.
@@ -104,3 +103,7 @@ Use this file as the lightweight task board for this project unless the project 
   - Added a "Replace" target with an internal `applyReplace` helper to `pwa/assets/rules.js`: literal matches are regex-escaped, regex mode is opt-in, replacement is always global and cleaned of invalid filename characters, and invalid patterns / empty find surface as row errors.
   - Added Find / Replace with / Use regex / Ignore case fields to the rule builder, wired through `updateRuleControls`, `readRuleForm`, `describeRule`, and the live sample, localized across all four languages.
   - Added rule-engine unit tests (literal, global, escaping, regex + capture group + case-insensitive, cleaned replacement, error cases), static wiring checks, and Playwright tests for literal and regex replacement in the preview.
+- [x] T030 - Add a case-transform rule mode (UPPERCASE / lowercase / Title Case).
+  - Added a "Case" target with an internal `applyCaseTransform` helper to `pwa/assets/rules.js`; Title Case treats spaces, "-", "_", and "." as word boundaries and preserves the file extension.
+  - Added a case-mode selector to the rule builder, wired through `updateRuleControls`, `readRuleForm`, `describeRule`, and the live sample, localized across all four languages.
+  - Added rule-engine unit tests (upper / lower / title / default / error) plus static wiring checks and Playwright tests for Title Case and UPPERCASE in the preview.

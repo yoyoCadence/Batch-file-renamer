@@ -1,7 +1,8 @@
 const INVALID_FILENAME_RE = /[<>:"/\\|?*\x00-\x1f]/g;
 
 export const VALUE_MODES = ["Static", "List", "SeqUp", "SeqDown", "Delete"];
-export const TARGETS = ["Segment", "Character", "Replace"];
+export const TARGETS = ["Segment", "Character", "Replace", "Case"];
+export const CASE_MODES = ["upper", "lower", "title"];
 
 export function parseValueLines(text = "") {
   const lines = String(text).split(/\r?\n/);
@@ -110,6 +111,11 @@ export function applyRulesToName(fileName, rules = [], rowIndex = 0, valueLines 
       continue;
     }
 
+    if (target === "Case") {
+      base = applyCaseTransform(base, rule);
+      continue;
+    }
+
     let value = cleanPart(ruleValue(rule, rowIndex, valueLines));
 
     if (target === "Segment") {
@@ -178,6 +184,23 @@ function applyReplace(base, rule) {
     throw new Error(`Invalid regular expression: ${error.message}`);
   }
   return base.replace(pattern, replacement);
+}
+
+// Case transform on the base name. Title case capitalizes the first letter of each
+// word and lowercases the rest, treating separators (spaces, "-", "_", ".") as word
+// boundaries by matching runs of letters/digits only.
+function applyCaseTransform(base, rule) {
+  const mode = String(rule.caseMode ?? rule.CaseMode ?? "upper");
+  if (mode === "upper") {
+    return base.toUpperCase();
+  }
+  if (mode === "lower") {
+    return base.toLowerCase();
+  }
+  if (mode === "title") {
+    return base.replace(/[^\W_]+/g, (word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase());
+  }
+  throw new Error(`Unknown case mode: ${mode}`);
 }
 
 export function buildPreviewRows(options) {

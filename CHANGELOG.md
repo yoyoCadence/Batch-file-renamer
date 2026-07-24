@@ -17,5 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Find-and-replace rule mode (T029): a new "Replace" rule target supports literal or
   regex find/replace (with capture groups and an ignore-case option) across the base
   filename; replacements are cleaned to stay filesystem-safe. Localized in all four languages.
+- Case-transform rule mode (T030): a new "Case" rule target converts the base filename
+  to UPPERCASE, lowercase, or Title Case (spaces, "-", "_", "." treated as word
+  boundaries), preserving the extension. Localized in all four languages.
 - Playwright browser verification (`npm run test:e2e`) covering the app shell load,
   the reserved-name preview flow, and a full execute -> undo round trip in Chromium.

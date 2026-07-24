@@ -150,6 +150,13 @@ assert.equal(applyRulesToName("a-b.txt", [{ target: "Replace", find: "-", replac
 assert.throws(() => applyRulesToName("x.txt", [{ target: "Replace", find: "" }], 0, []));
 assert.throws(() => applyRulesToName("x.txt", [{ target: "Replace", find: "(", useRegex: true }], 0, []));
 
+// Case-transform rule mode (applies to the base name; extension is preserved).
+assert.equal(applyRulesToName("My-Report_v2.PDF", [{ target: "Case", caseMode: "upper" }], 0, []), "MY-REPORT_V2.PDF");
+assert.equal(applyRulesToName("My-Report_v2.PDF", [{ target: "Case", caseMode: "lower" }], 0, []), "my-report_v2.PDF");
+assert.equal(applyRulesToName("my-report_draft.txt", [{ target: "Case", caseMode: "title" }], 0, []), "My-Report_Draft.txt");
+assert.equal(applyRulesToName("abc.txt", [{ target: "Case" }], 0, []), "ABC.txt");
+assert.throws(() => applyRulesToName("abc.txt", [{ target: "Case", caseMode: "weird" }], 0, []));
+
 const errorPreview = buildPreviewRows({
   mode: "rename",
   sources: [{ name: "short.txt", path: "Source/short.txt", folder: "Source", key: "short" }],

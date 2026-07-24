@@ -217,6 +217,28 @@ test("find-and-replace rule mode is wired and localized", async () => {
   assert.equal((settings.match(/"desc\.replace":/g) || []).length, 4);
 });
 
+test("case-transform rule mode is wired and localized", async () => {
+  const rules = await readFile("pwa/assets/rules.js", "utf8");
+  assert.match(rules, /"Segment", "Character", "Replace", "Case"/);
+  assert.match(rules, /function applyCaseTransform/);
+
+  const index = await readFile("pwa/index.html", "utf8");
+  assert.match(index, /value="Case"/);
+  assert.match(index, /id="caseModeSelect"/);
+  assert.match(index, /value="title"/);
+
+  const app = await readFile("pwa/assets/app.js", "utf8");
+  assert.match(app, /caseMode: els\.caseModeSelect\.value/);
+  assert.match(app, /rule\.target === "Case"/);
+
+  const settings = await readFile("pwa/assets/settings.js", "utf8");
+  // Each of the 4 languages must localize the case option, its modes, and description.
+  assert.equal((settings.match(/"option\.case":/g) || []).length, 4);
+  assert.equal((settings.match(/"option\.title":/g) || []).length, 4);
+  assert.equal((settings.match(/"field\.caseMode":/g) || []).length, 4);
+  assert.equal((settings.match(/"desc\.case":/g) || []).length, 4);
+});
+
 test("text files do not contain unresolved merge markers", async () => {
   for (const path of textFiles) {
     const text = await readFile(path, "utf8");
