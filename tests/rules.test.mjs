@@ -3,6 +3,8 @@ import {
   applyRulesToName,
   buildPreviewRows,
   cleanPart,
+  hasTrailingDotOrSpace,
+  isReservedFilename,
   parsePreviewCsv,
   rowsToCsv,
   validateRows
@@ -81,6 +83,41 @@ const invalidRows = validateRows([
 ]);
 
 assert.equal(invalidRows[0].status, "Invalid filename");
+
+// Windows reserved device names are unsafe regardless of extension or case.
+assert.equal(isReservedFilename("CON.txt"), true);
+assert.equal(isReservedFilename("con"), true);
+assert.equal(isReservedFilename("COM1.pdf"), true);
+assert.equal(isReservedFilename("nul.tar.gz"), true);
+assert.equal(isReservedFilename("console.txt"), false);
+assert.equal(isReservedFilename("report.txt"), false);
+
+// Windows silently strips a trailing dot or space.
+assert.equal(hasTrailingDotOrSpace("report."), true);
+assert.equal(hasTrailingDotOrSpace("report "), true);
+assert.equal(hasTrailingDotOrSpace("report.txt"), false);
+
+const reservedRow = validateRows([
+  {
+    action: "Rename",
+    sourceName: "a.txt",
+    sourcePath: "Source/a.txt",
+    targetName: "CON.txt",
+    targetFolder: "Source"
+  }
+]);
+assert.equal(reservedRow[0].status, "Reserved name");
+
+const trailingRow = validateRows([
+  {
+    action: "Rename",
+    sourceName: "a.txt",
+    sourcePath: "Source/a.txt",
+    targetName: "report.",
+    targetFolder: "Source"
+  }
+]);
+assert.equal(trailingRow[0].status, "Trailing dot or space");
 
 const errorPreview = buildPreviewRows({
   mode: "rename",

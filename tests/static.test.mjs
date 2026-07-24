@@ -161,6 +161,20 @@ test("service worker caches all project-bound runtime assets", async () => {
   }
 });
 
+test("filename validation exports and localized statuses are present", async () => {
+  const rules = await readFile("pwa/assets/rules.js", "utf8");
+  assert.match(rules, /export function isReservedFilename/);
+  assert.match(rules, /export function hasTrailingDotOrSpace/);
+  assert.match(rules, /WINDOWS_RESERVED_NAMES/);
+  assert.match(rules, /status = "Reserved name"/);
+  assert.match(rules, /status = "Trailing dot or space"/);
+
+  const settings = await readFile("pwa/assets/settings.js", "utf8");
+  // Each of the 4 languages (zh-Hant, zh-Hans, en, ja) must localize the new statuses.
+  assert.equal((settings.match(/"status\.Reserved name":/g) || []).length, 4);
+  assert.equal((settings.match(/"status\.Trailing dot or space":/g) || []).length, 4);
+});
+
 test("text files do not contain unresolved merge markers", async () => {
   for (const path of textFiles) {
     const text = await readFile(path, "utf8");
