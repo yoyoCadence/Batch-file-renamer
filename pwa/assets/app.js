@@ -154,6 +154,8 @@ const els = {
   replaceInput: $("replaceInput"),
   useRegexInput: $("useRegexInput"),
   caseInsensitiveInput: $("caseInsensitiveInput"),
+  caseModeField: $("caseModeField"),
+  caseModeSelect: $("caseModeSelect"),
   sampleOutput: $("sampleOutput"),
   addRuleButton: $("addRuleButton"),
   clearRulesButton: $("clearRulesButton"),
@@ -223,7 +225,8 @@ function init() {
     els.findInput,
     els.replaceInput,
     els.useRegexInput,
-    els.caseInsensitiveInput
+    els.caseInsensitiveInput,
+    els.caseModeSelect
   ].forEach((control) => control.addEventListener("input", updateRuleControls));
 
   els.addRuleButton.addEventListener("click", addRule);
@@ -687,26 +690,30 @@ function clearCopySetup() {
 
 function updateRuleControls() {
   const target = els.targetSelect.value;
-  const isReplace = target === "Replace";
   const isSegment = target === "Segment";
+  const isCharacter = target === "Character";
+  const isReplace = target === "Replace";
+  const isCase = target === "Case";
+  const usesValueMode = isSegment || isCharacter;
   const mode = els.valueModeSelect.value;
   const isSequence = mode === "SeqUp" || mode === "SeqDown";
 
-  els.directionField.hidden = isReplace || !isSegment;
-  els.delimiterField.hidden = isReplace || !isSegment;
-  els.segmentField.hidden = isReplace || !isSegment;
-  els.charStartField.hidden = isReplace || isSegment;
-  els.charLengthField.hidden = isReplace || isSegment;
-  els.valueModeField.hidden = isReplace;
-  els.staticField.hidden = isReplace || mode !== "Static";
-  els.listField.hidden = isReplace || mode !== "List";
-  els.seqStartField.hidden = isReplace || !isSequence;
-  els.seqStepField.hidden = isReplace || !isSequence;
-  els.padField.hidden = isReplace || !isSequence;
+  els.directionField.hidden = !isSegment;
+  els.delimiterField.hidden = !isSegment;
+  els.segmentField.hidden = !isSegment;
+  els.charStartField.hidden = !isCharacter;
+  els.charLengthField.hidden = !isCharacter;
+  els.valueModeField.hidden = !usesValueMode;
+  els.staticField.hidden = !usesValueMode || mode !== "Static";
+  els.listField.hidden = !usesValueMode || mode !== "List";
+  els.seqStartField.hidden = !usesValueMode || !isSequence;
+  els.seqStepField.hidden = !usesValueMode || !isSequence;
+  els.padField.hidden = !usesValueMode || !isSequence;
   els.findField.hidden = !isReplace;
   els.replaceField.hidden = !isReplace;
   els.regexField.hidden = !isReplace;
   els.caseField.hidden = !isReplace;
+  els.caseModeField.hidden = !isCase;
   renderSample();
 }
 
@@ -734,7 +741,8 @@ function readRuleForm() {
     find: els.findInput.value,
     replaceWith: els.replaceInput.value,
     useRegex: els.useRegexInput.checked,
-    caseInsensitive: els.caseInsensitiveInput.checked
+    caseInsensitive: els.caseInsensitiveInput.checked,
+    caseMode: els.caseModeSelect.value
   };
 }
 
@@ -1614,6 +1622,18 @@ function renderSample() {
         // Invalid regex while typing; fall back to the raw sample below.
       }
     }
+  } else if (target === "Case") {
+    const caseMode = els.caseModeSelect.value;
+    let result = base;
+    if (caseMode === "upper") {
+      result = base.toUpperCase();
+    } else if (caseMode === "lower") {
+      result = base.toLowerCase();
+    } else {
+      result = base.replace(/[^\W_]+/g, (word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase());
+    }
+    els.sampleOutput.textContent = result + ext;
+    return;
   } else if (target === "Segment") {
     const delimiter = els.delimiterInput.value;
     const parts = delimiter ? base.split(delimiter) : [base];
@@ -1658,6 +1678,9 @@ function describeRule(rule) {
       replaceWith: rule.replaceWith,
       mode: tKey(rule.useRegex ? "desc.regexOn" : "desc.regexOff")
     });
+  }
+  if (rule.target === "Case") {
+    return tKey("desc.case", { mode: tKey(`option.${rule.caseMode || "upper"}`) });
   }
   const target = rule.target === "Segment"
     ? tKey("desc.segment", {

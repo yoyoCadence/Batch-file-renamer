@@ -109,6 +109,7 @@
                   <option value="Segment" data-i18n="option.segment">段落</option>
                   <option value="Character" data-i18n="option.character">字元</option>
                   <option value="Replace" data-i18n="option.replace">取代</option>
+                  <option value="Case" data-i18n="option.case">大小寫</option>
                 </select>
               </label>
               <label id="directionField">
@@ -175,6 +176,14 @@
               <label id="caseField" class="toggle-row" hidden>
                 <input id="caseInsensitiveInput" type="checkbox">
                 <span data-i18n="field.caseInsensitive">忽略大小寫</span>
+              </label>
+              <label id="caseModeField" hidden>
+                <span data-i18n="field.caseMode">大小寫轉換</span>
+                <select id="caseModeSelect">
+                  <option value="upper" data-i18n="option.upper">全部大寫</option>
+                  <option value="lower" data-i18n="option.lower">全部小寫</option>
+                  <option value="title" data-i18n="option.title">字首大寫</option>
+                </select>
               </label>
             </div>
 

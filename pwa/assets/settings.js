@@ -641,6 +641,10 @@ export const TRANSLATIONS = {
     "option.segment": "段落",
     "option.character": "字元",
     "option.replace": "取代",
+    "option.case": "大小寫",
+    "option.upper": "全部大寫",
+    "option.lower": "全部小寫",
+    "option.title": "字首大寫",
     "field.direction": "方向",
     "option.fromStart": "從開頭",
     "option.fromEnd": "從結尾",
@@ -652,6 +656,7 @@ export const TRANSLATIONS = {
     "field.replaceWith": "取代為",
     "field.useRegex": "使用正規表達式",
     "field.caseInsensitive": "忽略大小寫",
+    "field.caseMode": "大小寫轉換",
     "field.valueMode": "值模式",
     "option.static": "固定值",
     "option.list": "清單",
@@ -764,6 +769,7 @@ export const TRANSLATIONS = {
     "desc.replace": "取代「{find}」→「{replaceWith}」（{mode}）。",
     "desc.regexOn": "正規表達式",
     "desc.regexOff": "純文字",
+    "desc.case": "大小寫轉換（{mode}）。",
     "desc.sequence": "{mode}，起始 {start}，間距 {step}，補零 {pad}。"
   },
   "zh-CN": {
@@ -855,6 +861,10 @@ export const TRANSLATIONS = {
     "option.segment": "段落",
     "option.character": "字符",
     "option.replace": "替换",
+    "option.case": "大小写",
+    "option.upper": "全部大写",
+    "option.lower": "全部小写",
+    "option.title": "首字母大写",
     "field.direction": "方向",
     "option.fromStart": "从开头",
     "option.fromEnd": "从结尾",
@@ -866,6 +876,7 @@ export const TRANSLATIONS = {
     "field.replaceWith": "替换为",
     "field.useRegex": "使用正则表达式",
     "field.caseInsensitive": "忽略大小写",
+    "field.caseMode": "大小写转换",
     "field.valueMode": "值模式",
     "option.static": "固定值",
     "option.list": "列表",
@@ -978,6 +989,7 @@ export const TRANSLATIONS = {
     "desc.replace": "替换「{find}」→「{replaceWith}」（{mode}）。",
     "desc.regexOn": "正则表达式",
     "desc.regexOff": "纯文本",
+    "desc.case": "大小写转换（{mode}）。",
     "desc.sequence": "{mode}，起始 {start}，间距 {step}，补零 {pad}。"
   },
   en: {
@@ -1069,6 +1081,10 @@ export const TRANSLATIONS = {
     "option.segment": "Segment",
     "option.character": "Character",
     "option.replace": "Replace",
+    "option.case": "Case",
+    "option.upper": "UPPERCASE",
+    "option.lower": "lowercase",
+    "option.title": "Title Case",
     "field.direction": "Direction",
     "option.fromStart": "From start",
     "option.fromEnd": "From end",
@@ -1080,6 +1096,7 @@ export const TRANSLATIONS = {
     "field.replaceWith": "Replace with",
     "field.useRegex": "Use regex",
     "field.caseInsensitive": "Ignore case",
+    "field.caseMode": "Case",
     "field.valueMode": "Value mode",
     "option.static": "Static",
     "option.list": "List",
@@ -1192,6 +1209,7 @@ export const TRANSLATIONS = {
     "desc.replace": "Replace '{find}' -> '{replaceWith}' ({mode}).",
     "desc.regexOn": "regex",
     "desc.regexOff": "literal",
+    "desc.case": "Case transform ({mode}).",
     "desc.sequence": "{mode} start {start}, step {step}, pad {pad}."
   },
   ja: {
@@ -1283,6 +1301,10 @@ export const TRANSLATIONS = {
     "option.segment": "セグメント",
     "option.character": "文字",
     "option.replace": "置換",
+    "option.case": "大文字小文字",
+    "option.upper": "大文字",
+    "option.lower": "小文字",
+    "option.title": "先頭大文字",
     "field.direction": "方向",
     "option.fromStart": "先頭から",
     "option.fromEnd": "末尾から",
@@ -1294,6 +1316,7 @@ export const TRANSLATIONS = {
     "field.replaceWith": "置換後",
     "field.useRegex": "正規表現を使う",
     "field.caseInsensitive": "大文字小文字を無視",
+    "field.caseMode": "大文字小文字",
     "field.valueMode": "値モード",
     "option.static": "固定値",
     "option.list": "リスト",
@@ -1406,6 +1429,7 @@ export const TRANSLATIONS = {
     "desc.replace": "「{find}」→「{replaceWith}」に置換（{mode}）。",
     "desc.regexOn": "正規表現",
     "desc.regexOff": "リテラル",
+    "desc.case": "大文字小文字変換（{mode}）。",
     "desc.sequence": "{mode}、開始 {start}、ステップ {step}、ゼロ埋め {pad}。"
   }
 };
