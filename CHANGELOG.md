@@ -20,5 +20,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Case-transform rule mode (T030): a new "Case" rule target converts the base filename
   to UPPERCASE, lowercase, or Title Case (spaces, "-", "_", "." treated as word
   boundaries), preserving the extension. Localized in all four languages.
+- Date/time tokens in Static values (T031): a Static rule value can include tokens like
+  {yyyy-MM-dd} or {HH-mm-ss} (yyyy/yy/MM/dd/HH/mm/ss), expanded once per batch so every
+  row shares the same timestamp. A localized hint documents the tokens. Localized in all four languages.
 - Playwright browser verification (`npm run test:e2e`) covering the app shell load,
   the reserved-name preview flow, and a full execute -> undo round trip in Chromium.

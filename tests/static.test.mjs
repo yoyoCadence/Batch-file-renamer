@@ -239,6 +239,22 @@ test("case-transform rule mode is wired and localized", async () => {
   assert.equal((settings.match(/"desc\.case":/g) || []).length, 4);
 });
 
+test("date/time tokens for Static values are wired and localized", async () => {
+  const rules = await readFile("pwa/assets/rules.js", "utf8");
+  assert.match(rules, /export function expandDateTokens/);
+  assert.match(rules, /yyyy\|yy\|MM\|dd\|HH\|mm\|ss/);
+
+  const index = await readFile("pwa/index.html", "utf8");
+  assert.match(index, /data-i18n="hint\.dateTokens"/);
+  assert.match(index, /class="field-hint"/);
+
+  const css = await readFile("pwa/assets/style.css", "utf8");
+  assert.match(css, /\.field-hint/);
+
+  const settings = await readFile("pwa/assets/settings.js", "utf8");
+  assert.equal((settings.match(/"hint\.dateTokens":/g) || []).length, 4);
+});
+
 test("text files do not contain unresolved merge markers", async () => {
   for (const path of textFiles) {
     const text = await readFile(path, "utf8");

@@ -3,6 +3,7 @@ import {
   applyRulesToName,
   buildPreviewRows,
   cleanPart,
+  expandDateTokens,
   hasTrailingDotOrSpace,
   isReservedFilename,
   parsePreviewCsv,
@@ -156,6 +157,31 @@ assert.equal(applyRulesToName("My-Report_v2.PDF", [{ target: "Case", caseMode: "
 assert.equal(applyRulesToName("my-report_draft.txt", [{ target: "Case", caseMode: "title" }], 0, []), "My-Report_Draft.txt");
 assert.equal(applyRulesToName("abc.txt", [{ target: "Case" }], 0, []), "ABC.txt");
 assert.throws(() => applyRulesToName("abc.txt", [{ target: "Case", caseMode: "weird" }], 0, []));
+
+// Date/time tokens in Static values (a fixed timestamp keeps a batch consistent).
+const fixedNow = new Date(2026, 6, 25, 9, 5, 3); // 2026-07-25 09:05:03 local
+assert.equal(expandDateTokens("{yyyy-MM-dd}", fixedNow), "2026-07-25");
+assert.equal(expandDateTokens("{yyyy}{MM}{dd}_{HH}{mm}{ss}", fixedNow), "20260725_090503");
+assert.equal(expandDateTokens("{yy}", fixedNow), "26");
+assert.equal(expandDateTokens("no tokens", fixedNow), "no tokens");
+assert.equal(expandDateTokens("{plain}", fixedNow), "{plain}");
+assert.equal(
+  applyRulesToName("a-x.txt", [{ target: "Segment", delimiter: "-", segmentNo: 2, valueMode: "Static", staticValue: "{yyyy-MM-dd}" }], 0, [], fixedNow),
+  "a-2026-07-25.txt"
+);
+// A token producing an invalid filename character (":" from a time) is cleaned.
+assert.equal(
+  applyRulesToName("a-x.txt", [{ target: "Segment", delimiter: "-", segmentNo: 2, valueMode: "Static", staticValue: "{HH:mm}" }], 0, [], fixedNow),
+  "a-09_05.txt"
+);
+// The timestamp threads through buildPreviewRows.
+const datedPreview = buildPreviewRows({
+  mode: "rename",
+  sources: [{ name: "doc.txt", path: "S/doc.txt", folder: "S", key: "d" }],
+  rules: [{ target: "Character", charStart: 1, charLength: 0, valueMode: "Static", staticValue: "{yyyy}-" }],
+  now: fixedNow
+});
+assert.equal(datedPreview.rows[0].targetName, "2026-doc.txt");
 
 const errorPreview = buildPreviewRows({
   mode: "rename",
