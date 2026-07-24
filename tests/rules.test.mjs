@@ -6,6 +6,7 @@ import {
   hasTrailingDotOrSpace,
   isReservedFilename,
   parsePreviewCsv,
+  planUndoOperations,
   rowsToCsv,
   validateRows
 } from "../pwa/assets/rules.js";
@@ -118,6 +119,17 @@ const trailingRow = validateRows([
   }
 ]);
 assert.equal(trailingRow[0].status, "Trailing dot or space");
+
+// Undo reverses each rename (from<->to) and applies them newest-first, keeping extra fields.
+const undoOps = planUndoOperations([
+  { from: "a.txt", to: "za.txt", directoryHandle: "D" },
+  { from: "b.txt", to: "zb.txt", directoryHandle: "D" }
+]);
+assert.deepEqual(undoOps, [
+  { from: "zb.txt", to: "b.txt", directoryHandle: "D" },
+  { from: "za.txt", to: "a.txt", directoryHandle: "D" }
+]);
+assert.deepEqual(planUndoOperations([]), []);
 
 const errorPreview = buildPreviewRows({
   mode: "rename",

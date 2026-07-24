@@ -2,6 +2,7 @@ import {
   buildPreviewRows,
   getFileName,
   parsePreviewCsv,
+  planUndoOperations,
   rowsToCsv,
   validateRows
 } from "./rules.js";
@@ -31,6 +32,7 @@ const state = {
   selectedRows: new Set(),
   showFullPath: false,
   sourceDirectoryHandle: null,
+  lastBatch: null,
   installPrompt: null,
   updateWorker: null,
   updateDismissed: false,
@@ -154,6 +156,7 @@ const els = {
   exportCsvButton: $("exportCsvButton"),
   importCsvButton: $("importCsvButton"),
   executeButton: $("executeButton"),
+  undoButton: $("undoButton"),
   csvInput: $("csvInput"),
   targetFolderInput: $("targetFolderInput"),
   pickPreviewOutputFolderButton: $("pickPreviewOutputFolderButton"),
@@ -222,6 +225,7 @@ function init() {
   els.importCsvButton.addEventListener("click", () => els.csvInput.click());
   els.csvInput.addEventListener("change", importCsv);
   els.executeButton.addEventListener("click", executeRows);
+  els.undoButton.addEventListener("click", undoLastBatch);
   els.pickPreviewOutputFolderButton.addEventListener("click", pickOutputFolder);
   els.applyFolderSelectedButton.addEventListener("click", () => applyFolderLabel("selected"));
   els.applyFolderAllButton.addEventListener("click", () => applyFolderLabel("all"));
@@ -851,12 +855,18 @@ async function executeRows() {
 
   let done = 0;
   let failed = 0;
+  const renames = [];
   for (const row of okRows) {
     try {
       if (row.action === "Copy") {
         await executeCopyRow(row);
       } else {
         await executeRenameRow(row);
+        renames.push({
+          from: row.sourceName,
+          to: row.targetName,
+          directoryHandle: row.sourceRef.directoryHandle
+        });
       }
       done += 1;
       updateRowStatus(row.id, "Done");
@@ -866,7 +876,46 @@ async function executeRows() {
     }
     renderPreview();
   }
+  // Only renames are reversible; a copy-only batch clears any prior undo entry.
+  state.lastBatch = renames.length > 0 ? { renames } : null;
+  updateUndoAvailability();
   setStatusKey("status.executionDone", { done, failed });
+}
+
+async function undoLastBatch() {
+  if (!state.lastBatch || state.lastBatch.renames.length === 0) {
+    setStatusKey("status.undoNothing");
+    return;
+  }
+  const operations = planUndoOperations(state.lastBatch.renames);
+  const confirmed = window.confirm(tKey("status.undoConfirm", { count: operations.length }));
+  if (!confirmed) {
+    return;
+  }
+
+  let done = 0;
+  let failed = 0;
+  for (const operation of operations) {
+    try {
+      await ensurePermission(operation.directoryHandle, "readwrite");
+      const currentHandle = await operation.directoryHandle.getFileHandle(operation.from, { create: false });
+      const file = await currentHandle.getFile();
+      await writeFileToDirectory(operation.directoryHandle, operation.to, file);
+      await operation.directoryHandle.removeEntry(operation.from);
+      done += 1;
+    } catch {
+      failed += 1;
+    }
+  }
+
+  state.lastBatch = null;
+  updateUndoAvailability();
+  setStatusKey("status.undoDone", { done, failed });
+}
+
+function updateUndoAvailability() {
+  const canUndo = Boolean(state.lastBatch && state.lastBatch.renames.length > 0);
+  els.undoButton.hidden = !canUndo;
 }
 
 async function executeCopyRow(row) {

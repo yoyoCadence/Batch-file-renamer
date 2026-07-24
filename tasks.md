@@ -8,7 +8,6 @@ Use this file as the lightweight task board for this project unless the project 
 
 ## Backlog
 
-- [ ] T028 - Add an "undo last batch" action that records old->new mappings on execute and can roll back the previous rename batch.
 - [ ] T029 - Add a find-and-replace rule mode (literal + regex) to the rule engine with focused unit tests.
 - [ ] T030 - Add a case-transform rule mode (UPPERCASE / lowercase / Title Case) with unit tests.
 - [ ] T031 - Support date/time tokens (e.g. {yyyy-MM-dd}) inside Static rule values.
@@ -97,3 +96,8 @@ Use this file as the lightweight task board for this project unless the project 
   - Localized both statuses across all four languages (zh-TW, zh-CN, en, ja) in `pwa/assets/settings.js`; the shared status legend already buckets unknown statuses as blocked/warn, so no `app.js` change was needed.
   - Added rule-engine unit tests and a static i18n-completeness check (`npm run test`, 15 passing).
   - Added Playwright browser verification (`npm run test:e2e`) that runs the shipped module in Chromium and drives the preview UI to show the reserved-name status for a `CON.*` target; service workers are blocked in tests to avoid the first-load self-reload wiping form state.
+- [x] T028 - Add an "undo last batch" action that rolls back the previous rename batch.
+  - Added `planUndoOperations` (pure: reverses each rename and applies them newest-first) to `pwa/assets/rules.js`.
+  - `executeRows` now records successful renames as `{ from, to, directoryHandle }` in `state.lastBatch`; a new "Undo last batch" button (hidden until a rename batch runs) reverses them behind a confirm dialog. Copy-only batches clear any prior undo.
+  - Localized the button label and undo status messages across all four languages.
+  - Added a `planUndoOperations` unit test and static wiring checks, plus a Playwright test that injects a fake File System Access API and verifies a real execute -> undo round trip restores the original filenames.

@@ -175,6 +175,25 @@ test("filename validation exports and localized statuses are present", async () 
   assert.equal((settings.match(/"status\.Trailing dot or space":/g) || []).length, 4);
 });
 
+test("undo-last-batch wiring and localized labels are present", async () => {
+  const index = await readFile("pwa/index.html", "utf8");
+  assert.match(index, /id="undoButton"/);
+
+  const rules = await readFile("pwa/assets/rules.js", "utf8");
+  assert.match(rules, /export function planUndoOperations/);
+
+  const app = await readFile("pwa/assets/app.js", "utf8");
+  assert.match(app, /planUndoOperations/);
+  assert.match(app, /async function undoLastBatch/);
+  assert.match(app, /function updateUndoAvailability/);
+  assert.match(app, /state\.lastBatch/);
+
+  const settings = await readFile("pwa/assets/settings.js", "utf8");
+  // Each of the 4 languages must localize the undo button and its confirm prompt.
+  assert.equal((settings.match(/"button\.undo":/g) || []).length, 4);
+  assert.equal((settings.match(/"status\.undoConfirm":/g) || []).length, 4);
+});
+
 test("text files do not contain unresolved merge markers", async () => {
   for (const path of textFiles) {
     const text = await readFile(path, "utf8");
