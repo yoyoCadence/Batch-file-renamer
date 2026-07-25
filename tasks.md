@@ -13,9 +13,6 @@ Use this file as the lightweight task board for this project unless the project 
 > ones landed. T035/T036 predate the review and are sequenced last because T041 delivers part
 > of what T036 asks for.
 
-- [ ] T038 - Make preview-only vs executable file sources obvious before the user builds rules.
-  - Files added via "Select files" or drag-and-drop can never execute, but nothing says so until every preview row is blocked.
-  - Add a source-capability badge and disable "Execute OK rows" while no row can actually be written.
 - [ ] T039 - Add a "processing scope" filter strip so users can see and control which files are in scope.
   - Extension chips derived from the loaded files (each showing its match count), plus name include/exclude text filters.
   - Show a plain-language summary of the active filter; render filtered-out files as dimmed rather than hiding them.
@@ -34,6 +31,13 @@ Use this file as the lightweight task board for this project unless the project 
 
 ## Done
 
+- [x] T038 - Make preview-only vs executable file sources obvious before the user builds rules.
+  - Added a `capability-strip` above the mode panels driven by a new `sourceCapability()` in `app.js`, the single place that answers "can this setup write to disk?". It returns ready / preview / empty for both rename and copy mode.
+  - The rule it encodes is the same one `applyExecutionLimits` already enforced per row (execution needs a handle from a directory picker); the difference is that the answer is now shown *before* the user invests time in building rules, instead of appearing as a wall of blocked rows afterwards.
+  - "Execute OK rows" is disabled unless the state is ready, with the blocking reason as its `title`. The CSS is scoped to `#executeButton[disabled]` rather than all buttons, because rule reorder arrows already have their own disabled treatment.
+  - Browsers without the File System Access API get `capability.browserLimitedDetail` instead of "pick a source folder", which is advice they cannot act on.
+  - Rewrote the drag-and-drop hint in all four languages to state the preview-only limit up front.
+  - 13 new keys localized across all four languages. Added static wiring checks and `tests/e2e/source-capability.spec.mjs` covering all four states (empty, preview-only via file input, ready via the shared fake FS, and copy mode). `npm run test` 24 passing, `npm run test:e2e` 20 passing.
 - [x] T037 - Fix untranslated UI leaks: rule-card titles, rule-engine error messages, hardcoded folder labels.
   - Added `codedError` / `errorDetail` to `pwa/assets/rules.js`: every engine and execution failure now carries a stable `code` plus `params`. The English `message` is deliberately kept because it is what lands in CSV exports and execution logs, which must not change with the interface language.
   - Rows carry a new `statusDetail` field; `validateRows` clears it whenever a plain validation state replaces a rule error, so a stale reason cannot be shown.

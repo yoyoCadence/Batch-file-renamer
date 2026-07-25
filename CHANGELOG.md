@@ -33,6 +33,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   them as sources, with a drop-here hint and a highlight while dragging. Localized in all
   four languages.
 
+- Source capability strip (T038): the file setup panel now states up front whether the
+  loaded sources can actually be written to disk ("Ready to rename" / "Preview only,
+  cannot rename" / nothing loaded yet), covering both rename and copy mode. "Execute OK
+  rows" is disabled unless a real directory handle exists, with the reason on hover, and
+  the drag-and-drop hint says the preview-only limit before files are dropped. Browsers
+  without the File System Access API get an accurate message instead of advice they
+  cannot act on. Localized in all four languages.
+
 ### Fixed
 - Untranslated interface text (T037): rule cards showed the internal target enum
   ("Replace", "Segment") instead of the localized label; rule-engine and execution

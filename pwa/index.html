@@ -57,6 +57,14 @@
             </div>
           </div>
 
+          <div id="sourceCapability" class="capability-strip" data-state="empty" role="status" aria-live="polite">
+            <span class="capability-dot" aria-hidden="true"></span>
+            <div>
+              <strong id="capabilityTitle">尚未載入檔案</strong>
+              <p id="capabilityDetail">選擇來源資料夾才能真的改檔名。</p>
+            </div>
+          </div>
+
           <div id="renameSetup" class="mode-panel">
             <div class="action-row">
               <button id="pickSourceFolderButton" class="primary-button" type="button" data-i18n="button.pickSourceFolder">選擇來源資料夾</button>
@@ -66,7 +74,7 @@
             <input id="fileInput" type="file" multiple hidden>
             <p class="hint" data-i18n="hint.rename">選擇來源資料夾可在 Chromium 取得執行權限；資料夾挑選視窗可能只顯示資料夾，若要挑特定檔案請用「選取檔案」。系統與暫存檔會自動略過。</p>
             <div id="sourceList" class="file-list" aria-live="polite"></div>
-            <p class="drop-hint" data-i18n="hint.dropFiles">或把檔案拖放到這個區塊加入來源。</p>
+            <p class="drop-hint" data-i18n="hint.dropFiles">或把檔案拖放到這個區塊加入來源（僅供預覽，無法直接改名）。</p>
           </div>
 
           <div id="copySetup" class="mode-panel" hidden>
