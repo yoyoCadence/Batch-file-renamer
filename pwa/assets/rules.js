@@ -397,6 +397,27 @@ export function rowsToCsv(rows) {
   return lines.join("\r\n");
 }
 
+// Build a per-row execution log CSV from entries recorded during execute
+// ({ action, sourceName, sourcePath, targetName, targetFolder, targetPath, result, message, timestamp }).
+export function executionLogToCsv(entries = []) {
+  const columns = ["Action", "SourceName", "SourcePath", "TargetName", "TargetFolder", "TargetPath", "Result", "Message", "Timestamp"];
+  const lines = [columns.join(",")];
+  for (const entry of entries) {
+    lines.push([
+      entry.action,
+      entry.sourceName,
+      entry.sourcePath,
+      entry.targetName,
+      entry.targetFolder,
+      entry.targetPath,
+      entry.result,
+      entry.message,
+      entry.timestamp
+    ].map(csvEscape).join(","));
+  }
+  return lines.join("\r\n");
+}
+
 export function parsePreviewCsv(text) {
   const records = parseCsvRecords(text);
   if (records.length < 2) {

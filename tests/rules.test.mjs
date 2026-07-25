@@ -3,6 +3,7 @@ import {
   applyRulesToName,
   buildPreviewRows,
   cleanPart,
+  executionLogToCsv,
   expandDateTokens,
   hasTrailingDotOrSpace,
   isReservedFilename,
@@ -182,6 +183,18 @@ const datedPreview = buildPreviewRows({
   now: fixedNow
 });
 assert.equal(datedPreview.rows[0].targetName, "2026-doc.txt");
+
+// Execution log CSV: header, plain row, and escaping of commas/quotes.
+const logCsv = executionLogToCsv([
+  { action: "Rename", sourceName: "a.txt", sourcePath: "S/a.txt", targetName: "b.txt", targetFolder: "S", targetPath: "S/b.txt", result: "Done", message: "", timestamp: "2026-07-25T00:00:00.000Z" },
+  { action: "Rename", sourceName: "c,d.txt", sourcePath: "S/c,d.txt", targetName: "e.txt", targetFolder: "S", targetPath: "S/e.txt", result: "Error", message: 'bad "x"', timestamp: "2026-07-25T00:00:00.000Z" }
+]);
+const logLines = logCsv.split("\r\n");
+assert.equal(logLines[0], "Action,SourceName,SourcePath,TargetName,TargetFolder,TargetPath,Result,Message,Timestamp");
+assert.equal(logLines[1], "Rename,a.txt,S/a.txt,b.txt,S,S/b.txt,Done,,2026-07-25T00:00:00.000Z");
+assert.ok(logLines[2].includes('"c,d.txt"'));
+assert.ok(logLines[2].includes('"bad ""x"""'));
+assert.equal(executionLogToCsv([]).split("\r\n").length, 1);
 
 const errorPreview = buildPreviewRows({
   mode: "rename",

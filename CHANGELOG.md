@@ -26,6 +26,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Rule enable/disable and reordering (T032): each rule row now has an enable/disable
   toggle plus up/down buttons and drag-and-drop reordering; disabled rules are skipped
   and rule order affects how rules apply. Localized in all four languages.
+- Execution log export (T033): after running a rename/copy batch, an "Export log" button
+  downloads a per-row CSV report (action, source, target, result, error message,
+  timestamp). Localized in all four languages.
 
 ### Fixed
 - Rule-list rows could let their action buttons overflow the clipped rules panel,
