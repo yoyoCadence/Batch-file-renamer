@@ -111,6 +111,69 @@ export function filterSources(sources = [], scope = EMPTY_SCOPE) {
   return sources.filter((source) => matchesScope(source.name || "", scope));
 }
 
+// Split two names into the common prefix, the part that differs, and the common suffix, so
+// the table can mark exactly what a rule stack changed. Comparing whole names side by side
+// does not scale past a handful of rows.
+export function diffSpan(before, after) {
+  const from = String(before ?? "");
+  const to = String(after ?? "");
+
+  let start = 0;
+  while (start < from.length && start < to.length && from[start] === to[start]) {
+    start += 1;
+  }
+
+  // Stop the suffix scan before it can overlap the prefix, otherwise "aa" -> "aaa" would
+  // consume the same characters twice and produce a negative-length middle.
+  let end = 0;
+  const maxEnd = Math.min(from.length - start, to.length - start);
+  while (end < maxEnd && from[from.length - 1 - end] === to[to.length - 1 - end]) {
+    end += 1;
+  }
+
+  return {
+    prefix: from.slice(0, start),
+    removed: from.slice(start, from.length - end),
+    added: to.slice(start, to.length - end),
+    suffix: from.slice(from.length - end)
+  };
+}
+
+// --- Row repairs -------------------------------------------------------------------------
+// Each helper fixes exactly one blocked status and is pure, so the UI can offer a one-click
+// fix without re-implementing the validation rules it has to satisfy.
+
+export function sanitizeFilename(name) {
+  return cleanPart(getFileName(name));
+}
+
+export function stripTrailingDotOrSpace(name) {
+  return String(name ?? "").replace(/[ .]+$/, "");
+}
+
+// Windows reserves the name regardless of extension, so the prefix has to land on the base.
+export function escapeReservedName(name) {
+  const { base, ext } = splitFilename(name);
+  return `${base}_${ext}`;
+}
+
+// Append -1, -2, ... before the extension until the name is free. `taken` holds normalized
+// path keys, matching how validateRows detects duplicates.
+export function nextAvailableName(name, taken = new Set(), folder = "") {
+  const { base, ext } = splitFilename(name);
+  const isTaken = (candidate) => taken.has(normalizePathKey(joinDisplayPath(folder, candidate)));
+  if (!isTaken(name)) {
+    return name;
+  }
+  for (let suffix = 1; suffix < 10000; suffix += 1) {
+    const candidate = `${base}-${suffix}${ext}`;
+    if (!isTaken(candidate)) {
+      return candidate;
+    }
+  }
+  return name;
+}
+
 export function hasInvalidFilenameChars(name) {
   INVALID_FILENAME_RE.lastIndex = 0;
   return INVALID_FILENAME_RE.test(String(name));

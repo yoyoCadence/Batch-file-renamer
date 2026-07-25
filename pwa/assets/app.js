@@ -3,15 +3,21 @@ import {
   applyRulesToName,
   buildPreviewRows,
   codedError,
+  diffSpan,
   errorDetail,
+  escapeReservedName,
   executionLogToCsv,
   filterSources,
   getFileName,
   isScopeActive,
+  joinDisplayPath,
+  nextAvailableName,
   parsePreviewCsv,
   parseValueLines,
   planUndoOperations,
   rowsToCsv,
+  sanitizeFilename,
+  stripTrailingDotOrSpace,
   summarizeExtensions,
   validateRows
 } from "./rules.js";
@@ -43,6 +49,9 @@ const state = {
   rows: [],
   selectedRows: new Set(),
   showFullPath: false,
+  // Which status bucket the table is narrowed to, or null for everything. Filtering is a
+  // view concern only -- execution always reads the full row set.
+  statusFilter: null,
   sourceDirectoryHandle: null,
   lastBatch: null,
   lastExecutionReport: [],
@@ -106,6 +115,28 @@ const SYSTEM_FILE_NAMES = new Set(["desktop.ini", "thumbs.db", "ehthumbs.db", ".
 // and a `const` referenced during that first render would still be in its temporal dead zone.
 const SAMPLE_FALLBACK = "50-INDS-AT-52602_0.pdf";
 const LIVE_PREVIEW_DELAY = 200;
+// Plain-language explanation per blocked status. Statuses covered by the capability strip
+// (Preview only / Source folder only / Output permission needed) are explained there instead
+// of repeating the same sentence on every row.
+const STATUS_REASONS = {
+  "Duplicate target": "reason.duplicateTarget",
+  "Target exists": "reason.targetExists",
+  "Invalid filename": "reason.invalidFilename",
+  "Reserved name": "reason.reservedName",
+  "Trailing dot or space": "reason.trailingDotOrSpace",
+  "No change": "reason.noChange",
+  "Target name empty": "reason.targetNameEmpty",
+  "Target folder empty": "reason.targetFolderEmpty"
+};
+// Only statuses with a deterministic repair get a button; anything needing a human decision
+// (a rule error, a permission problem) does not.
+const ROW_FIXES = {
+  "Duplicate target": { labelKey: "fix.autoNumber", kind: "autoNumber" },
+  "Target exists": { labelKey: "fix.autoNumber", kind: "autoNumber" },
+  "Invalid filename": { labelKey: "fix.sanitize", kind: "sanitize" },
+  "Reserved name": { labelKey: "fix.escapeReserved", kind: "escapeReserved" },
+  "Trailing dot or space": { labelKey: "fix.stripTrailing", kind: "stripTrailing" }
+};
 const $ = (id) => document.getElementById(id);
 
 const els = {
@@ -194,6 +225,10 @@ const els = {
   applyFolderSelectedButton: $("applyFolderSelectedButton"),
   applyFolderAllButton: $("applyFolderAllButton"),
   showFullPathInput: $("showFullPathInput"),
+  statusLegend: $("statusLegend"),
+  legendCountOk: $("legendCountOk"),
+  legendCountWarn: $("legendCountWarn"),
+  legendCountError: $("legendCountError"),
   sourceCapability: $("sourceCapability"),
   capabilityTitle: $("capabilityTitle"),
   capabilityDetail: $("capabilityDetail"),
@@ -298,6 +333,12 @@ function init() {
   els.pickPreviewOutputFolderButton.addEventListener("click", pickOutputFolder);
   els.applyFolderSelectedButton.addEventListener("click", () => applyFolderLabel("selected"));
   els.applyFolderAllButton.addEventListener("click", () => applyFolderLabel("all"));
+  els.statusLegend.addEventListener("click", (event) => {
+    const chip = event.target.closest(".legend-chip");
+    if (chip) {
+      toggleStatusFilter(chip.dataset.filter);
+    }
+  });
   els.showFullPathInput.addEventListener("change", () => {
     state.showFullPath = els.showFullPathInput.checked;
     renderPreview();
@@ -1599,6 +1640,8 @@ function renderPreview() {
     ? tKey("preview.summary", { total: state.rows.length, ok: counts.ok, blocked: counts.blocked })
     : tKey("preview.none");
 
+  renderLegend(counts);
+
   if (state.rows.length === 0) {
     const row = document.createElement("tr");
     row.innerHTML = `<td colspan="7" class="empty-table">${escapeHtml(tKey("empty.preview"))}</td>`;
@@ -1606,7 +1649,18 @@ function renderPreview() {
     return;
   }
 
-  for (const row of state.rows) {
+  const visibleRows = state.statusFilter
+    ? state.rows.filter((row) => statusKind(row.status) === state.statusFilter)
+    : state.rows;
+
+  if (visibleRows.length === 0) {
+    const row = document.createElement("tr");
+    row.innerHTML = `<td colspan="7" class="empty-table">${escapeHtml(tKey("empty.filteredRows"))}</td>`;
+    els.previewBody.append(row);
+    return;
+  }
+
+  for (const row of visibleRows) {
     const tr = document.createElement("tr");
     tr.dataset.status = statusKind(row.status);
 
@@ -1647,13 +1701,78 @@ function renderPreview() {
       cellWith(selected),
       textCell(row.no),
       textCell(tKey(`action.${row.action}`)),
-      textCell(state.showFullPath ? (row.sourcePath || row.sourceName) : row.sourceName, row.sourcePath || row.sourceName),
+      diffCell(row),
       cellWith(targetName),
       cellWith(targetFolder),
       statusCell(row)
     );
     els.previewBody.append(tr);
   }
+}
+
+// Inline diff of source -> target: unchanged text plain, the replaced span struck through,
+// the new span highlighted. Reading two full names side by side does not scale, and this is
+// the column a user scans before trusting a 100-row batch.
+function diffCell(row) {
+  const td = document.createElement("td");
+  td.className = "diff-cell";
+  td.title = row.sourcePath || row.sourceName;
+
+  if (state.showFullPath) {
+    const folder = document.createElement("span");
+    folder.className = "diff-folder";
+    folder.textContent = `${joinDisplayPath(getFolderPart(row), "")}`;
+    td.append(folder);
+  }
+
+  const { prefix, removed, added, suffix } = diffSpan(row.sourceName, row.targetName);
+  if (!removed && !added) {
+    const plain = document.createElement("span");
+    plain.textContent = row.sourceName;
+    td.append(plain);
+    td.dataset.changed = "false";
+    return td;
+  }
+
+  td.dataset.changed = "true";
+  td.append(document.createTextNode(prefix));
+  if (removed) {
+    const del = document.createElement("del");
+    del.textContent = removed;
+    td.append(del);
+  }
+  if (added) {
+    const ins = document.createElement("ins");
+    ins.textContent = added;
+    td.append(ins);
+  }
+  td.append(document.createTextNode(suffix));
+  return td;
+}
+
+function getFolderPart(row) {
+  const path = row.sourcePath || "";
+  const index = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
+  return index > 0 ? path.slice(0, index) : "";
+}
+
+function renderLegend(counts) {
+  els.legendCountOk.textContent = String(counts.ok);
+  els.legendCountWarn.textContent = String(counts.blocked - counts.error);
+  els.legendCountError.textContent = String(counts.error);
+  for (const chip of els.statusLegend.querySelectorAll(".legend-chip")) {
+    const active = state.statusFilter === chip.dataset.filter;
+    chip.setAttribute("aria-pressed", String(active));
+    chip.dataset.active = String(active);
+  }
+}
+
+function toggleStatusFilter(filter) {
+  state.statusFilter = state.statusFilter === filter ? null : filter;
+  renderPreview();
+  setStatusKey(state.statusFilter ? "status.rowFilterOn" : "status.rowFilterOff", {
+    kind: tKey(`safety.${filter === "warn" ? "blocked" : filter}`)
+  });
 }
 
 function renderExecutionSummary(counts = summarizeRows()) {
@@ -2238,7 +2357,66 @@ function statusCell(row) {
   badge.className = `status-pill ${statusKind(row.status)}`;
   badge.textContent = translateStatus(row);
   td.append(badge);
+
+  // A blocked row is only useful if it says why in plain language and, where the fix is
+  // mechanical, offers to apply it.
+  const reasonKey = STATUS_REASONS[row.status];
+  if (reasonKey) {
+    const reason = document.createElement("p");
+    reason.className = "status-reason";
+    reason.textContent = tKey(reasonKey);
+    td.append(reason);
+  }
+
+  const fix = ROW_FIXES[row.status];
+  if (fix) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "fix-button";
+    button.textContent = tKey(fix.labelKey);
+    button.addEventListener("click", () => applyRowFix(row.id, fix));
+    td.append(button);
+  }
   return td;
+}
+
+function applyRowFix(id, fix) {
+  const row = state.rows.find((candidate) => candidate.id === id);
+  if (!row) {
+    return;
+  }
+
+  let targetName = row.targetName;
+  if (fix.kind === "sanitize") {
+    targetName = sanitizeFilename(targetName);
+  } else if (fix.kind === "escapeReserved") {
+    targetName = escapeReservedName(targetName);
+  } else if (fix.kind === "stripTrailing") {
+    targetName = stripTrailingDotOrSpace(targetName);
+  } else if (fix.kind === "autoNumber") {
+    // Every other row's target is taken, plus whatever already exists on disk for this row.
+    const taken = new Set(
+      state.rows
+        .filter((candidate) => candidate.id !== id)
+        .map((candidate) => normalizeKey(joinDisplayPath(candidate.targetFolder, candidate.targetName)))
+    );
+    if (row.targetExists) {
+      taken.add(normalizeKey(joinDisplayPath(row.targetFolder, row.targetName)));
+    }
+    targetName = nextAvailableName(row.targetName, taken, row.targetFolder);
+  }
+
+  if (targetName === row.targetName) {
+    setStatusKey("status.fixNoChange");
+    return;
+  }
+  // Clearing targetExists lets validateRows re-decide; the next disk recheck confirms it.
+  updateRow(id, { targetName, status: "OK", targetExists: false });
+  setStatusKey("status.fixApplied", { name: targetName });
+}
+
+function normalizeKey(path) {
+  return String(path || "").replaceAll("\\", "/").toLowerCase();
 }
 
 function cellWith(node) {

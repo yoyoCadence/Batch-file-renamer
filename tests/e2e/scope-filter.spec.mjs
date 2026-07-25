@@ -57,7 +57,7 @@ test("deselecting an extension narrows the scope and the preview", async ({ page
   await addUppercaseRule(page);
   await page.click("#previewButton");
   await expect(page.locator("#previewBody tr")).toHaveCount(2);
-  await expect(page.locator("#previewBody")).not.toContainText("report-2023.pdf");
+  await expect(page.locator('#previewBody .diff-cell[title="report-2023.pdf"]')).toHaveCount(0);
 });
 
 test("name include and exclude filters combine", async ({ page }) => {
@@ -75,8 +75,9 @@ test("name include and exclude filters combine", async ({ page }) => {
   await addUppercaseRule(page);
   await page.click("#previewButton");
   await expect(page.locator("#previewBody tr")).toHaveCount(2);
-  await expect(page.locator("#previewBody")).toContainText("IMG_2024_a.jpg");
-  await expect(page.locator("#previewBody")).not.toContainText("backup-2024.pdf");
+  // The name column renders a diff, so the row's source is identified by the cell title.
+  await expect(page.locator("#previewBody .diff-cell").first()).toHaveAttribute("title", "IMG_2024_a.jpg");
+  await expect(page.locator('#previewBody .diff-cell[title="backup-2024.pdf"]')).toHaveCount(0);
 });
 
 test("clearing the filter restores the full scope", async ({ page }) => {

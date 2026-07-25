@@ -4,6 +4,8 @@ import {
   applyRulesToName,
   buildPreviewRows,
   cleanPart,
+  diffSpan,
+  escapeReservedName,
   executionLogToCsv,
   expandDateTokens,
   fileExtension,
@@ -11,9 +13,12 @@ import {
   hasTrailingDotOrSpace,
   isReservedFilename,
   isScopeActive,
+  nextAvailableName,
   parsePreviewCsv,
   planUndoOperations,
   rowsToCsv,
+  sanitizeFilename,
+  stripTrailingDotOrSpace,
   summarizeExtensions,
   validateRows
 } from "../pwa/assets/rules.js";
@@ -373,5 +378,40 @@ const mismatch = buildPreviewRows({
 });
 assert.equal(mismatch.messageCode, "valueListCountMismatch");
 assert.deepEqual(mismatch.messageParams, { lines: 1, files: 2 });
+
+// T041: the diff drives the preview table's change column.
+assert.deepEqual(diffSpan("50-INDS-AT-1.pdf", "50-PROJ-AT-1.pdf"), {
+  prefix: "50-", removed: "INDS", added: "PROJ", suffix: "-AT-1.pdf"
+});
+assert.deepEqual(diffSpan("a.txt", "a.txt"), { prefix: "a.txt", removed: "", added: "", suffix: "" });
+assert.deepEqual(diffSpan("b.txt", "prefix-b.txt"), { prefix: "", removed: "", added: "prefix-", suffix: "b.txt" });
+assert.deepEqual(diffSpan("old-b.txt", "b.txt"), { prefix: "", removed: "old-", added: "", suffix: "b.txt" });
+// The suffix scan must not reach back past the prefix, or the middle would go negative.
+assert.deepEqual(diffSpan("aa", "aaa"), { prefix: "aa", removed: "", added: "a", suffix: "" });
+assert.deepEqual(diffSpan("", "new.txt"), { prefix: "", removed: "", added: "new.txt", suffix: "" });
+{
+  const { prefix, removed, suffix } = diffSpan("x.txt", "y.txt");
+  assert.equal(prefix + removed + suffix, "x.txt", "prefix + removed + suffix rebuilds the original");
+}
+
+// Row repairs: each fixes exactly the status it is offered for.
+assert.equal(sanitizeFilename('a<b>c:d.txt'), "a_b_c_d.txt");
+assert.equal(stripTrailingDotOrSpace("report. "), "report");
+assert.equal(stripTrailingDotOrSpace("report.txt"), "report.txt", "a real extension is not a trailing dot");
+assert.equal(escapeReservedName("CON.txt"), "CON_.txt");
+assert.equal(escapeReservedName("NUL"), "NUL_");
+assert.equal(isReservedFilename(escapeReservedName("CON.txt")), false, "the repair clears the status it fixes");
+
+const taken = new Set(["out/a.txt", "out/a-1.txt"]);
+assert.equal(nextAvailableName("a.txt", taken, "Out"), "a-2.txt");
+assert.equal(nextAvailableName("free.txt", taken, "Out"), "free.txt", "an unused name is left alone");
+assert.equal(nextAvailableName("a.txt", new Set(), "Out"), "a.txt");
+
+// The repaired names must actually pass validation, not just look different.
+const repaired = validateRows([
+  { action: "Rename", sourceName: "s1.txt", sourcePath: "S/s1.txt", targetName: "dup.txt", targetFolder: "S", status: "OK" },
+  { action: "Rename", sourceName: "s2.txt", sourcePath: "S/s2.txt", targetName: nextAvailableName("dup.txt", new Set(["s/dup.txt"]), "S"), targetFolder: "S", status: "OK" }
+]);
+assert.deepEqual(repaired.map((row) => row.status), ["OK", "OK"]);
 
 console.log("rules tests passed");

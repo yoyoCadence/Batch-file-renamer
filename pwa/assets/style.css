@@ -1194,7 +1194,9 @@ mark {
   gap: 8px;
 }
 
-.status-legend span {
+.status-legend span,
+.legend-chip {
+  width: auto;
   min-height: 28px;
   display: inline-flex;
   align-items: center;
@@ -1205,6 +1207,72 @@ mark {
   background: var(--panel-bg-strong);
   color: var(--muted);
   font-size: 0.84rem;
+}
+
+/* The legend doubles as the row filter: clicking a bucket narrows the table to it. */
+.legend-chip em {
+  font-style: normal;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.legend-chip[data-active="true"] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--surface) 72%, var(--accent) 28%);
+  color: var(--text);
+}
+
+/* Inline diff of the name change: replaced span struck through, new span highlighted. */
+.diff-cell {
+  overflow-wrap: anywhere;
+}
+
+.diff-cell del {
+  padding: 0 2px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--surface) 62%, var(--danger) 38%);
+  color: var(--text);
+  text-decoration: line-through;
+}
+
+.diff-cell ins {
+  margin-left: 2px;
+  padding: 0 2px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--surface) 58%, var(--ok) 42%);
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.diff-cell[data-changed="false"] {
+  color: var(--muted);
+}
+
+.diff-folder {
+  margin-right: 2px;
+  color: var(--muted);
+  opacity: 0.8;
+}
+
+.status-reason {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.fix-button {
+  width: auto;
+  min-height: 26px;
+  margin-top: 5px;
+  padding: 0 10px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 76%, var(--accent) 24%);
+  color: var(--text);
+  font-size: 0.78rem;
 }
 
 .dot {

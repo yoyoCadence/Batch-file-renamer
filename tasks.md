@@ -13,9 +13,6 @@ Use this file as the lightweight task board for this project unless the project 
 > ones landed. T035/T036 predate the review and are sequenced last because T041 delivers part
 > of what T036 asks for.
 
-- [ ] T041 - Make the preview table show what changed and how to fix blocked rows.
-  - Highlight the changed span between current and target name.
-  - Make the status legend chips filter the table; give each blocked status a plain-language reason and, where possible, a one-click fix.
 - [ ] T042 - Add beginner rule presets that do not require understanding Segment/Character.
   - Add prefix / add suffix, change extension, and cleanup (collapse whitespace, strip special characters).
   - "Change extension" needs rule-engine support: `applyRulesToName` currently always preserves the extension.
@@ -25,6 +22,15 @@ Use this file as the lightweight task board for this project unless the project 
 
 ## Done
 
+- [x] T041 - Make the preview table show what changed and how to fix blocked rows.
+  - Added `diffSpan()` to `pwa/assets/rules.js` (common prefix + common suffix, with the suffix scan clamped so it cannot overlap the prefix). The preview's source column is now a `diffCell` rendering unchanged text plain, the replaced span in `<del>`, and the new span in `<ins>`; the column header became "檔名變化". Comparing two full names across columns does not scale past a handful of rows, which undercut the whole "preview before you execute" promise on a 100-row batch.
+  - The static legend became `.legend-chip` buttons with per-bucket counts that narrow the table. Filtering is view-only: `state.statusFilter` affects rendering, never `executeRows`, which still reads `state.rows`. A static test asserts execution does not read the filtered list.
+  - Every blocked status carries a plain-language reason (`STATUS_REASONS`). Statuses already explained by the T038 capability strip are deliberately excluded rather than repeating the same sentence on every row.
+  - Added pure repairs to `rules.js` — `sanitizeFilename`, `stripTrailingDotOrSpace`, `escapeReservedName`, `nextAvailableName` — surfaced as one-click fixes for the five mechanically fixable statuses. Statuses needing a human decision (rule errors, permission problems) get no button.
+  - Extended the shared e2e fake FS to accept a custom file map. Specs that need genuine validation statuses must load via a real directory handle, because preview-only sources are masked by the "Source folder only" execution limit — worth knowing before writing any future preview spec.
+  - Updated two `scope-filter` assertions that read the source name as contiguous text; the column is a diff now, so rows are identified by the cell's `title`.
+  - 18 new keys localized across all four languages. Added `diffSpan` and repair unit tests (including that a repair actually clears the status it fixes), static wiring checks, and `tests/e2e/preview-diff.spec.mjs` (8 cases). `npm run test` 27 passing, `npm run test:e2e` 41 passing.
+  - Known limitation: the diff is computed per row on every render. Fine at the batch sizes tested; if very large batches become a target, this is the first thing to memoize.
 - [x] T040 - Make the preview live and make each rule card show its own before/after.
   - Added `schedulePreview()` / `runLivePreview()` (200ms debounce) wired to every input that changes what the preview would produce: rule add/remove/reorder/enable, scope, source and template loading, mode, copy count, and the value list.
   - The live pass deliberately skips `revalidateWithFilesystem`, which needs real IO and would fire on every keystroke. The button keeps that check and was relabelled "重新檢查（含磁碟）" with a tooltip, because "檢查預覽" no longer describes what is left for it to do.
