@@ -1082,6 +1082,47 @@ mark {
   overflow-wrap: anywhere;
 }
 
+/* Per-rule before -> after, so a rule stack can be read one contribution at a time. */
+.rule-preview {
+  margin-top: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.rule-preview b {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Explicit margin rather than relying on the flex gap alone: the arrow is the thing that
+   makes this read as before -> after, so it must not sit flush against either name. */
+.rule-preview i {
+  margin: 0 2px;
+  font-style: normal;
+  opacity: 0.7;
+}
+
+.rule-preview[data-kind="change"] b:last-of-type {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.rule-preview[data-kind="error"] {
+  color: var(--danger);
+}
+
+.rule-preview[data-kind="disabled"],
+.rule-preview[data-kind="nochange"] {
+  opacity: 0.75;
+  font-style: italic;
+}
+
 .rule-actions {
   display: flex;
   align-items: center;

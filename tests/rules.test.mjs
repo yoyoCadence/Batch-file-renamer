@@ -343,4 +343,35 @@ const scopedPreview = buildPreviewRows({
 assert.equal(scopedPreview.rows.length, 2);
 assert.deepEqual(scopedPreview.rows.map((row) => row.sourceName), ["IMG_2024_a.jpg", "IMG_2024_b.JPG"]);
 
+// T040: engine guards identify themselves with a code so the UI can localize them, while the
+// English message stays put for logs.
+const guardCases = [
+  [{ mode: "rename", sources: [{ name: "a.txt", key: "a" }], rules: [] }, "noRules"],
+  [{ mode: "rename", sources: [], rules: [{ target: "Case", caseMode: "upper" }] }, "needSources"],
+  [{ mode: "copy", template: null, rules: [{ target: "Case", caseMode: "upper" }] }, "needTemplate"],
+  [{ mode: "copy", template: { name: "t.txt" }, outputFolder: "", rules: [{ target: "Case", caseMode: "upper" }] }, "needOutputFolder"],
+  [{
+    mode: "copy",
+    template: { name: "t.txt" },
+    outputFolder: "Out",
+    rules: [{ target: "Segment", delimiter: ".", segmentNo: 1, valueMode: "List" }],
+    valueListText: ""
+  }, "valueListEmpty"]
+];
+for (const [options, expectedCode] of guardCases) {
+  const result = buildPreviewRows(options);
+  assert.equal(result.ok, false, expectedCode);
+  assert.equal(result.messageCode, expectedCode);
+  assert.ok(typeof result.message === "string" && result.message.length > 0, `${expectedCode} keeps an English message`);
+}
+
+const mismatch = buildPreviewRows({
+  mode: "rename",
+  sources: [{ name: "a.txt", key: "a" }, { name: "b.txt", key: "b" }],
+  rules: [{ target: "Segment", delimiter: ".", segmentNo: 1, valueMode: "List" }],
+  valueListText: "only-one\n"
+});
+assert.equal(mismatch.messageCode, "valueListCountMismatch");
+assert.deepEqual(mismatch.messageParams, { lines: 1, files: 2 });
+
 console.log("rules tests passed");

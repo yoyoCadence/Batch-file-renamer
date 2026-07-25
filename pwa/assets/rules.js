@@ -325,11 +325,16 @@ export function buildPreviewRows(options) {
   const valueLines = parseValueLines(valueListText);
   const usesList = rules.some((rule) => (rule.valueMode || rule.ValueMode) === "List");
 
+  // Guard results carry a `messageCode` (plus params where the text is parameterized) for the
+  // same reason thrown errors do: the English `message` stays stable for logs, while the UI
+  // renders a localized `guard.<code>`. Live preview surfaces these constantly, so they must
+  // read as guidance rather than as engine output.
   if (rules.length === 0) {
     return {
       ok: false,
       keepExisting: true,
       message: "No rules yet. Existing preview is kept.",
+      messageCode: "noRules",
       rows: previousRows
     };
   }
@@ -340,6 +345,7 @@ export function buildPreviewRows(options) {
         ok: false,
         keepExisting: true,
         message: "Select a template file first.",
+        messageCode: "needTemplate",
         rows: previousRows
       };
     }
@@ -348,6 +354,7 @@ export function buildPreviewRows(options) {
         ok: false,
         keepExisting: true,
         message: "Select an output folder first.",
+        messageCode: "needOutputFolder",
         rows: previousRows
       };
     }
@@ -357,6 +364,7 @@ export function buildPreviewRows(options) {
         ok: false,
         keepExisting: true,
         message: "A rule uses Value List, but the list is empty. Existing preview is kept.",
+        messageCode: "valueListEmpty",
         rows: previousRows
       };
     }
@@ -386,6 +394,7 @@ export function buildPreviewRows(options) {
       ok: false,
       keepExisting: true,
       message: "Add source files first. Existing preview is kept.",
+      messageCode: "needSources",
       rows: previousRows
     };
   }
@@ -395,6 +404,8 @@ export function buildPreviewRows(options) {
       ok: false,
       keepExisting: true,
       message: `Value List row count does not match file count. Value lines: ${valueLines.length}. Files: ${sources.length}.`,
+      messageCode: "valueListCountMismatch",
+      messageParams: { lines: valueLines.length, files: sources.length },
       rows: previousRows
     };
   }

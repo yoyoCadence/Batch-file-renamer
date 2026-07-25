@@ -451,6 +451,54 @@ test("processing scope filter is wired and localized", async () => {
   }
 });
 
+test("live preview and per-rule before/after are wired and localized", async () => {
+  const app = await readFile("pwa/assets/app.js", "utf8");
+  assert.match(app, /function schedulePreview/);
+  assert.match(app, /function runLivePreview/);
+  assert.match(app, /function previewOptions/);
+  assert.match(app, /function guardMessage/);
+  assert.match(app, /function ruleChainPreviews/);
+  assert.match(app, /function rulePreviewNode/);
+  // `init()` runs at module scope, so anything the first render touches must be declared
+  // above it or it is still in its temporal dead zone.
+  const initIndex = app.indexOf("\ninit();");
+  assert.ok(initIndex > 0);
+  for (const name of ["SAMPLE_FALLBACK", "LIVE_PREVIEW_DELAY"]) {
+    const declIndex = app.indexOf(`const ${name} =`);
+    assert.ok(declIndex > 0 && declIndex < initIndex, `${name} must be declared before init()`);
+  }
+  // Every input that changes what the preview would produce has to refresh it.
+  assert.ok((app.match(/schedulePreview\(\);/g) || []).length >= 12);
+
+  const rules = await readFile("pwa/assets/rules.js", "utf8");
+  for (const code of ["noRules", "needTemplate", "needOutputFolder", "valueListEmpty", "needSources", "valueListCountMismatch"]) {
+    assert.match(rules, new RegExp(`messageCode: "${code}"`), code);
+  }
+
+  const css = await readFile("pwa/assets/style.css", "utf8");
+  assert.match(css, /\.rule-preview/);
+  assert.match(css, /\.rule-preview\[data-kind="error"\]/);
+
+  const index = await readFile("pwa/index.html", "utf8");
+  assert.match(index, /data-i18n-title="tooltip\.preview"/);
+
+  const settings = await readFile("pwa/assets/settings.js", "utf8");
+  const keys = [
+    "rule\\.previewDisabled",
+    "rule\\.previewNoChange",
+    "tooltip\\.preview",
+    "guard\\.noRules",
+    "guard\\.needTemplate",
+    "guard\\.needOutputFolder",
+    "guard\\.valueListEmpty",
+    "guard\\.needSources",
+    "guard\\.valueListCountMismatch"
+  ];
+  for (const key of keys) {
+    assert.equal((settings.match(new RegExp(`"${key}":`, "g")) || []).length, 4, key);
+  }
+});
+
 test("text files do not contain unresolved merge markers", async () => {
   for (const path of textFiles) {
     const text = await readFile(path, "utf8");

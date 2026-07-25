@@ -13,9 +13,6 @@ Use this file as the lightweight task board for this project unless the project 
 > ones landed. T035/T036 predate the review and are sequenced last because T041 delivers part
 > of what T036 asks for.
 
-- [ ] T040 - Make the preview live and make each rule card show its own before/after.
-  - Debounced auto-preview so editing a rule updates the table without pressing "Check preview".
-  - Each rule card shows before -> after for the first in-scope file, chained through the preceding rules.
 - [ ] T041 - Make the preview table show what changed and how to fix blocked rows.
   - Highlight the changed span between current and target name.
   - Make the status legend chips filter the table; give each blocked status a plain-language reason and, where possible, a one-click fix.
@@ -28,6 +25,15 @@ Use this file as the lightweight task board for this project unless the project 
 
 ## Done
 
+- [x] T040 - Make the preview live and make each rule card show its own before/after.
+  - Added `schedulePreview()` / `runLivePreview()` (200ms debounce) wired to every input that changes what the preview would produce: rule add/remove/reorder/enable, scope, source and template loading, mode, copy count, and the value list.
+  - The live pass deliberately skips `revalidateWithFilesystem`, which needs real IO and would fire on every keystroke. The button keeps that check and was relabelled "重新檢查（含磁碟）" with a tooltip, because "檢查預覽" no longer describes what is left for it to do.
+  - Extracted `previewOptions()` so the live pass and the button cannot drift apart in what they feed the engine.
+  - Added `ruleChainPreviews()` / `rulePreviewNode()`: each card shows `before -> after` for the first in-scope file, starting from the previous rule's output. This replaces the misleading old behaviour where the sample strip only reflected the rule being edited, so a two-rule stack still showed one rule's effect. Disabled rules render "已停用，不會套用。" without advancing the chain; a rule that throws shows its localized reason and the chain continues from the last good name.
+  - Engine guard results now carry `messageCode` (+ `messageParams`), localized as `guard.*`. Same split as T037: English `message` stays for logs, UI renders the translation. Live preview surfaces these constantly, so leaving them in English was no longer viable.
+  - Fixed a real bug found by the e2e suite during this task: `SAMPLE_FALLBACK` was declared next to its use, but `init()` runs at module scope above it, so the first render hit the temporal dead zone and the whole app failed to boot. Both new constants moved to the top block, with a static test asserting they are declared before `init()`.
+  - 9 new keys localized across all four languages. Added engine guard unit tests, static wiring checks, and `tests/e2e/live-preview.spec.mjs` (7 cases). `npm run test` 26 passing, `npm run test:e2e` 33 passing.
+  - Known limitation: a live re-preview rebuilds rows, so manual edits to target name/folder are discarded when a rule or the scope changes. This matches the previous behaviour (those changes already cleared the table) but now happens automatically.
 - [x] T039 - Add a "processing scope" filter strip so users can see and control which files are in scope.
   - Added pure scope helpers to `pwa/assets/rules.js` (`EMPTY_SCOPE`, `fileExtension`, `summarizeExtensions`, `isScopeActive`, `matchesScope`, `filterSources`). Scope answers "which files does this batch touch?", which is a different question from the rules' "how does each name change?"; keeping the two separate is what makes the UI explainable.
   - Added a scope strip to the source panel: extension chips with match counts (most common first), plus case-insensitive "name contains" / "name excludes" fields matching the whole filename.
