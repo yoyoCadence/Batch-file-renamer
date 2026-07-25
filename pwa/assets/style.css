@@ -873,6 +873,63 @@ textarea {
   font-size: 0.82rem;
 }
 
+/* Always-visible answer to "can this actually write to my disk?", shown before the user
+   invests time in building rules. Colour follows the same ok/warn language as row statuses. */
+.capability-strip {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 84%, transparent);
+}
+
+.capability-strip strong {
+  display: block;
+  font-size: 0.94rem;
+}
+
+.capability-strip p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.capability-dot {
+  margin-top: 5px;
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.capability-strip[data-state="ready"] {
+  background: color-mix(in srgb, var(--surface) 80%, var(--ok) 20%);
+}
+
+.capability-strip[data-state="ready"] .capability-dot {
+  background: var(--ok);
+}
+
+.capability-strip[data-state="preview"] {
+  background: color-mix(in srgb, var(--surface) 78%, var(--warn) 22%);
+}
+
+.capability-strip[data-state="preview"] .capability-dot {
+  background: var(--warn);
+}
+
+/* Scoped to the execute button rather than all buttons: existing disabled controls
+   (rule reorder arrows) already have their own treatment. */
+#executeButton[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .mode-panel.is-dragover {
   outline: 2px dashed var(--muted);
   outline-offset: 4px;

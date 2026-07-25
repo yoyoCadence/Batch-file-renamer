@@ -352,6 +352,50 @@ test("rule errors and folder labels are localized instead of leaking English", a
   }
 });
 
+test("source capability strip is wired and localized", async () => {
+  const index = await readFile("pwa/index.html", "utf8");
+  assert.match(index, /id="sourceCapability"/);
+  assert.match(index, /id="capabilityTitle"/);
+  assert.match(index, /id="capabilityDetail"/);
+  assert.match(index, /class="[^"]*\bcapability-strip\b[^"]*"/);
+
+  const app = await readFile("pwa/assets/app.js", "utf8");
+  assert.match(app, /function sourceCapability/);
+  assert.match(app, /function renderCapability/);
+  // The badge must reflect the same handle-based rule that execution itself enforces.
+  assert.match(app, /state\.sourceDirectoryHandle/);
+  assert.match(app, /els\.executeButton\.disabled = !canExecute/);
+  // A browser without the File System Access API cannot act on "pick a folder" advice.
+  assert.match(app, /capability\.browserLimitedDetail/);
+
+  const css = await readFile("pwa/assets/style.css", "utf8");
+  assert.match(css, /\.capability-strip\[data-state="ready"\]/);
+  assert.match(css, /\.capability-strip\[data-state="preview"\]/);
+  assert.match(css, /#executeButton\[disabled\]/);
+
+  const settings = await readFile("pwa/assets/settings.js", "utf8");
+  const keys = [
+    "capability\\.renameEmptyTitle",
+    "capability\\.renameEmptyDetail",
+    "capability\\.renamePreviewTitle",
+    "capability\\.renamePreviewDetail",
+    "capability\\.renameReadyTitle",
+    "capability\\.renameReadyDetail",
+    "capability\\.copyEmptyTitle",
+    "capability\\.copyEmptyDetail",
+    "capability\\.copyPreviewTitle",
+    "capability\\.copyPreviewDetail",
+    "capability\\.copyReadyTitle",
+    "capability\\.copyReadyDetail",
+    "capability\\.browserLimitedDetail"
+  ];
+  for (const key of keys) {
+    assert.equal((settings.match(new RegExp(`"${key}":`, "g")) || []).length, 4, key);
+  }
+  // The drop hint has to state the preview-only limit up front, not after every row blocks.
+  assert.equal((settings.match(/"hint\.dropFiles": "[^"]*(預覽|预览|preview|プレビュー)/g) || []).length, 4);
+});
+
 test("text files do not contain unresolved merge markers", async () => {
   for (const path of textFiles) {
     const text = await readFile(path, "utf8");

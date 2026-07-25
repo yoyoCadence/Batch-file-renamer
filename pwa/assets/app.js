@@ -180,6 +180,9 @@ const els = {
   applyFolderSelectedButton: $("applyFolderSelectedButton"),
   applyFolderAllButton: $("applyFolderAllButton"),
   showFullPathInput: $("showFullPathInput"),
+  sourceCapability: $("sourceCapability"),
+  capabilityTitle: $("capabilityTitle"),
+  capabilityDetail: $("capabilityDetail"),
   previewBody: $("previewBody"),
   statusText: $("statusText"),
   petImage: $("petImage"),
@@ -517,6 +520,7 @@ function updateMode() {
   els.renameSetup.hidden = state.mode !== "rename";
   els.copySetup.hidden = state.mode !== "copy";
   renderFileSummary();
+  renderCapability();
 }
 
 function resetPreviewRows() {
@@ -1100,9 +1104,68 @@ function updateRowStatus(id, status, statusDetail = null) {
 
 function renderAll() {
   renderFileSummary();
+  renderCapability();
   renderRules();
   renderPreview();
   renderSample();
+}
+
+// Single source of truth for "can this setup actually write to disk?". Execution needs a
+// handle obtained from a directory picker; files added via the file input or drag-and-drop
+// carry no handle and can only ever be previewed. `applyExecutionLimits` enforces the same
+// rule per row -- this function is what lets the UI say so *before* any rules are built.
+function sourceCapability() {
+  if (state.mode === "copy") {
+    if (!state.template) {
+      return { state: "empty", titleKey: "capability.copyEmptyTitle", detailKey: "capability.copyEmptyDetail" };
+    }
+    if (!state.outputDirectory?.handle) {
+      return {
+        state: "preview",
+        titleKey: "capability.copyPreviewTitle",
+        // On a browser without the File System Access API, "pick an output folder" is advice
+        // the user cannot act on, so say what is actually true instead.
+        detailKey: hasFileSystemAccess ? "capability.copyPreviewDetail" : "capability.browserLimitedDetail"
+      };
+    }
+    return {
+      state: "ready",
+      titleKey: "capability.copyReadyTitle",
+      detailKey: "capability.copyReadyDetail",
+      params: { name: state.outputDirectory.name }
+    };
+  }
+
+  if (state.sources.length === 0) {
+    return { state: "empty", titleKey: "capability.renameEmptyTitle", detailKey: "capability.renameEmptyDetail" };
+  }
+  if (!state.sourceDirectoryHandle) {
+    return {
+      state: "preview",
+      titleKey: "capability.renamePreviewTitle",
+      detailKey: hasFileSystemAccess ? "capability.renamePreviewDetail" : "capability.browserLimitedDetail"
+    };
+  }
+  return {
+    state: "ready",
+    titleKey: "capability.renameReadyTitle",
+    detailKey: "capability.renameReadyDetail",
+    params: { name: state.sourceDirectoryHandle.name }
+  };
+}
+
+function renderCapability() {
+  const capability = sourceCapability();
+  const params = capability.params || {};
+  els.sourceCapability.dataset.state = capability.state;
+  els.capabilityTitle.textContent = tKey(capability.titleKey, params);
+  els.capabilityDetail.textContent = tKey(capability.detailKey, params);
+
+  // Executing is only meaningful once a real directory handle exists, so the button stays
+  // disabled (with the reason on hover) instead of failing after the user commits to it.
+  const canExecute = capability.state === "ready";
+  els.executeButton.disabled = !canExecute;
+  els.executeButton.title = canExecute ? "" : tKey(capability.detailKey, params);
 }
 
 function renderFileSummary() {
