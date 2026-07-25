@@ -33,6 +33,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   them as sources, with a drop-here hint and a highlight while dragging. Localized in all
   four languages.
 
+- Processing scope filter (T039): the source panel now has a scope strip that controls
+  which of the loaded files a batch touches, separately from the rules that decide how
+  each name changes. Extension chips (each showing its match count) toggle file types in
+  and out, and "name contains" / "name excludes" narrow further. A plain-language line
+  states the result ("Processing 2 of 8 file(s). Conditions: extensions .jpg only; name
+  contains \"2024\"."). Filtered-out files stay listed but dimmed instead of disappearing.
+  Preview rows and the live sample come from the scoped set, so an out-of-scope file can
+  never be executed. Loading a new source set clears any previous filter. Localized in all
+  four languages.
 - Source capability strip (T038): the file setup panel now states up front whether the
   loaded sources can actually be written to disk ("Ready to rename" / "Preview only,
   cannot rename" / nothing loaded yet), covering both rename and copy mode. "Execute OK

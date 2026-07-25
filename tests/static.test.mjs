@@ -396,6 +396,61 @@ test("source capability strip is wired and localized", async () => {
   assert.equal((settings.match(/"hint\.dropFiles": "[^"]*(預覽|预览|preview|プレビュー)/g) || []).length, 4);
 });
 
+test("processing scope filter is wired and localized", async () => {
+  const rules = await readFile("pwa/assets/rules.js", "utf8");
+  for (const symbol of ["EMPTY_SCOPE", "fileExtension", "summarizeExtensions", "isScopeActive", "matchesScope", "filterSources"]) {
+    assert.match(rules, new RegExp(`export (const|function) ${symbol}\\b`), symbol);
+  }
+
+  const index = await readFile("pwa/index.html", "utf8");
+  assert.match(index, /id="scopeStrip"/);
+  assert.match(index, /id="extensionChips"/);
+  assert.match(index, /id="scopeIncludeInput"/);
+  assert.match(index, /id="scopeExcludeInput"/);
+  assert.match(index, /id="clearScopeButton"/);
+  assert.match(index, /id="scopeSummary"/);
+
+  const app = await readFile("pwa/assets/app.js", "utf8");
+  assert.match(app, /function scopedSources/);
+  assert.match(app, /function renderScope/);
+  assert.match(app, /function describeScope/);
+  assert.match(app, /function toggleExtension/);
+  // Preview rows and the live sample must come from the scoped set, otherwise an
+  // out-of-scope file could still be executed.
+  assert.match(app, /sources: scopedSources\(\)/);
+  assert.match(app, /scopedSources\(\)\[0\]\?\.name/);
+  assert.match(app, /is-out-of-scope/);
+  // Loading a new source set must not inherit the previous filter.
+  assert.equal((app.match(/resetScope\(\);/g) || []).length, 4);
+
+  const css = await readFile("pwa/assets/style.css", "utf8");
+  assert.match(css, /\.scope-strip/);
+  assert.match(css, /\.extension-chip\[data-active="true"\]/);
+  assert.match(css, /\.file-list span\.is-out-of-scope/);
+
+  const settings = await readFile("pwa/assets/settings.js", "utf8");
+  const keys = [
+    "scope\\.title",
+    "scope\\.clear",
+    "scope\\.include",
+    "scope\\.exclude",
+    "scope\\.noExtension",
+    "scope\\.outOfScope",
+    "scope\\.summaryAll",
+    "scope\\.summaryFiltered",
+    "scope\\.conditions",
+    "scope\\.condExtensions",
+    "scope\\.condNoExtensions",
+    "scope\\.condInclude",
+    "scope\\.condExclude",
+    "status\\.scopeCleared",
+    "status\\.scopeEmpty"
+  ];
+  for (const key of keys) {
+    assert.equal((settings.match(new RegExp(`"${key}":`, "g")) || []).length, 4, key);
+  }
+});
+
 test("text files do not contain unresolved merge markers", async () => {
   for (const path of textFiles) {
     const text = await readFile(path, "utf8");

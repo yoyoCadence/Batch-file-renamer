@@ -1,15 +1,20 @@
 import assert from "node:assert/strict";
 import {
+  EMPTY_SCOPE,
   applyRulesToName,
   buildPreviewRows,
   cleanPart,
   executionLogToCsv,
   expandDateTokens,
+  fileExtension,
+  filterSources,
   hasTrailingDotOrSpace,
   isReservedFilename,
+  isScopeActive,
   parsePreviewCsv,
   planUndoOperations,
   rowsToCsv,
+  summarizeExtensions,
   validateRows
 } from "../pwa/assets/rules.js";
 
@@ -276,5 +281,66 @@ assert.equal(
   "匯入的資料"
 );
 assert.equal(parsePreviewCsv("Action,SourceName,TargetName\nRename,a.txt,b.txt\n")[0].targetFolder, "Imported");
+
+// T039: scope filtering decides which files a batch touches, independently of the rules.
+const scopeSources = [
+  { name: "IMG_2024_a.jpg", key: "1" },
+  { name: "IMG_2024_b.JPG", key: "2" },
+  { name: "report-2023.pdf", key: "3" },
+  { name: "backup-2024.pdf", key: "4" },
+  { name: "README", key: "5" }
+];
+
+assert.equal(fileExtension("a.JPG"), ".jpg", "extensions compare case-insensitively");
+assert.equal(fileExtension("README"), "", "a file with no dot has no extension");
+assert.equal(fileExtension(".gitignore"), "", "a leading dot is a name, not an extension");
+
+// Counts drive the chip row: most common first, ties broken by name.
+assert.deepEqual(summarizeExtensions(scopeSources), [
+  { ext: ".jpg", count: 2 },
+  { ext: ".pdf", count: 2 },
+  { ext: "", count: 1 }
+]);
+
+assert.equal(isScopeActive(EMPTY_SCOPE), false);
+assert.equal(isScopeActive({ ...EMPTY_SCOPE, include: "   " }), false, "whitespace is not a filter");
+assert.equal(isScopeActive({ ...EMPTY_SCOPE, excludedExtensions: [".pdf"] }), true);
+
+// Excluding an extension keeps everything else, including extension-less files.
+assert.deepEqual(
+  filterSources(scopeSources, { ...EMPTY_SCOPE, excludedExtensions: [".pdf"] }).map((s) => s.key),
+  ["1", "2", "5"]
+);
+
+// Include/exclude match the whole filename, case-insensitively.
+assert.deepEqual(
+  filterSources(scopeSources, { ...EMPTY_SCOPE, include: "2024" }).map((s) => s.key),
+  ["1", "2", "4"]
+);
+assert.deepEqual(
+  filterSources(scopeSources, { ...EMPTY_SCOPE, include: "img" }).map((s) => s.key),
+  ["1", "2"]
+);
+assert.deepEqual(
+  filterSources(scopeSources, { ...EMPTY_SCOPE, include: "2024", exclude: "backup" }).map((s) => s.key),
+  ["1", "2"]
+);
+assert.deepEqual(filterSources(scopeSources, EMPTY_SCOPE).map((s) => s.key), ["1", "2", "3", "4", "5"]);
+assert.deepEqual(
+  filterSources(scopeSources, { ...EMPTY_SCOPE, include: "nothing-matches" }),
+  [],
+  "an over-narrow filter yields an empty scope rather than falling back to everything"
+);
+
+// Filtering composes with the engine: only in-scope files become preview rows, so an
+// out-of-scope file can never be executed.
+const scopedPreview = buildPreviewRows({
+  mode: "rename",
+  sources: filterSources(scopeSources, { ...EMPTY_SCOPE, excludedExtensions: [".pdf", ""] }),
+  rules: [{ target: "Case", caseMode: "upper" }],
+  sourceFolderFallback: "S"
+});
+assert.equal(scopedPreview.rows.length, 2);
+assert.deepEqual(scopedPreview.rows.map((row) => row.sourceName), ["IMG_2024_a.jpg", "IMG_2024_b.JPG"]);
 
 console.log("rules tests passed");

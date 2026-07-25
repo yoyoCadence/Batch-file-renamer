@@ -1,12 +1,16 @@
 import {
+  EMPTY_SCOPE,
   buildPreviewRows,
   codedError,
   errorDetail,
   executionLogToCsv,
+  filterSources,
   getFileName,
+  isScopeActive,
   parsePreviewCsv,
   planUndoOperations,
   rowsToCsv,
+  summarizeExtensions,
   validateRows
 } from "./rules.js";
 import {
@@ -31,6 +35,9 @@ const state = {
   template: null,
   outputDirectory: null,
   rules: [],
+  // Which of the loaded sources this batch touches. Reset whenever sources are (re)loaded so
+  // a filter from a previous folder cannot silently narrow the next one.
+  scope: { ...EMPTY_SCOPE },
   rows: [],
   selectedRows: new Set(),
   showFullPath: false,
@@ -183,6 +190,12 @@ const els = {
   sourceCapability: $("sourceCapability"),
   capabilityTitle: $("capabilityTitle"),
   capabilityDetail: $("capabilityDetail"),
+  scopeStrip: $("scopeStrip"),
+  scopeSummary: $("scopeSummary"),
+  extensionChips: $("extensionChips"),
+  scopeIncludeInput: $("scopeIncludeInput"),
+  scopeExcludeInput: $("scopeExcludeInput"),
+  clearScopeButton: $("clearScopeButton"),
   previewBody: $("previewBody"),
   statusText: $("statusText"),
   petImage: $("petImage"),
@@ -213,6 +226,18 @@ function init() {
   els.renameSetup.addEventListener("dragover", handleSourceDragOver);
   els.renameSetup.addEventListener("dragleave", handleSourceDragLeave);
   els.renameSetup.addEventListener("drop", handleSourceDrop);
+  [els.scopeIncludeInput, els.scopeExcludeInput].forEach((control) => {
+    control.addEventListener("input", () => {
+      state.scope.include = els.scopeIncludeInput.value;
+      state.scope.exclude = els.scopeExcludeInput.value;
+      onScopeChanged();
+    });
+  });
+  els.clearScopeButton.addEventListener("click", () => {
+    resetScope();
+    onScopeChanged();
+    setStatusKey("status.scopeCleared");
+  });
   els.pickTemplateButton.addEventListener("click", pickTemplate);
   els.pickOutputFolderButton.addEventListener("click", pickOutputFolder);
   els.clearCopySetupButton.addEventListener("click", clearCopySetup);
@@ -567,6 +592,7 @@ async function pickSourceFolder() {
       });
     }
     state.sources = sources.sort((a, b) => a.name.localeCompare(b.name));
+    resetScope();
     state.rows = [];
     state.selectedRows.clear();
     renderAll();
@@ -606,6 +632,7 @@ function addSourceFiles(fileList) {
       file
     }
   }));
+  resetScope();
   state.rows = [];
   state.selectedRows.clear();
   renderAll();
@@ -643,6 +670,7 @@ function handleSourceDrop(event) {
 function clearSources() {
   state.sources = [];
   state.sourceDirectoryHandle = null;
+  resetScope();
   state.rows = [];
   state.selectedRows.clear();
   renderAll();
@@ -791,9 +819,16 @@ function readRuleForm() {
 }
 
 async function previewRules() {
+  // Files exist but the filter excludes all of them: say that instead of letting the engine
+  // report the misleading "add source files first".
+  if (state.mode === "rename" && state.sources.length > 0 && scopedSources().length === 0) {
+    setStatusKey("status.scopeEmpty");
+    return;
+  }
+
   const result = buildPreviewRows({
     mode: state.mode,
-    sources: state.sources,
+    sources: scopedSources(),
     template: state.template,
     outputFolder: state.outputDirectory?.name || "",
     count: Number.parseInt(els.copyCount.value, 10),
@@ -1102,8 +1137,100 @@ function updateRowStatus(id, status, statusDetail = null) {
   state.rows = state.rows.map((row) => row.id === id ? { ...row, status, statusDetail } : row);
 }
 
+// The subset of loaded sources this batch acts on. Everything downstream -- preview rows,
+// the live sample, and therefore execution -- reads from here, so an out-of-scope file can
+// never be touched.
+function scopedSources() {
+  return filterSources(state.sources, state.scope);
+}
+
+function resetScope() {
+  state.scope = { ...EMPTY_SCOPE, excludedExtensions: [] };
+  els.scopeIncludeInput.value = "";
+  els.scopeExcludeInput.value = "";
+}
+
+function onScopeChanged() {
+  // A narrowed scope means the existing rows no longer describe what would run.
+  resetPreviewRows();
+  renderAll();
+}
+
+function toggleExtension(ext) {
+  const excluded = new Set(state.scope.excludedExtensions);
+  if (excluded.has(ext)) {
+    excluded.delete(ext);
+  } else {
+    excluded.add(ext);
+  }
+  state.scope.excludedExtensions = [...excluded];
+  onScopeChanged();
+}
+
+function renderScope() {
+  // Filtering by name/extension only makes sense for a set of source files; copy mode works
+  // from a single template.
+  const applicable = state.mode === "rename" && state.sources.length > 0;
+  els.scopeStrip.hidden = !applicable;
+  if (!applicable) {
+    return;
+  }
+
+  const total = state.sources.length;
+  const scoped = scopedSources().length;
+  const active = isScopeActive(state.scope);
+  const conditions = describeScope();
+  els.scopeSummary.textContent = active
+    ? `${tKey("scope.summaryFiltered", { total, scoped })}${conditions ? ` ${conditions}` : ""}`
+    : tKey("scope.summaryAll", { total });
+  els.clearScopeButton.disabled = !active;
+
+  const excluded = new Set(state.scope.excludedExtensions);
+  els.extensionChips.innerHTML = "";
+  for (const { ext, count } of summarizeExtensions(state.sources)) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "extension-chip";
+    chip.dataset.ext = ext;
+    chip.dataset.active = String(!excluded.has(ext));
+    chip.setAttribute("aria-pressed", String(!excluded.has(ext)));
+    const label = document.createElement("span");
+    label.textContent = ext || tKey("scope.noExtension");
+    const badge = document.createElement("b");
+    badge.textContent = String(count);
+    chip.append(label, badge);
+    chip.addEventListener("click", () => toggleExtension(ext));
+    els.extensionChips.append(chip);
+  }
+}
+
+// Plain-language list of the active conditions, so the filter is readable without
+// reverse-engineering it from the chip states.
+function describeScope() {
+  const parts = [];
+  const excluded = new Set(state.scope.excludedExtensions);
+  if (excluded.size > 0) {
+    const kept = summarizeExtensions(state.sources)
+      .filter(({ ext }) => !excluded.has(ext))
+      .map(({ ext }) => ext || tKey("scope.noExtension"));
+    parts.push(kept.length > 0
+      ? tKey("scope.condExtensions", { list: kept.join("、") })
+      : tKey("scope.condNoExtensions"));
+  }
+  const include = String(state.scope.include || "").trim();
+  if (include) {
+    parts.push(tKey("scope.condInclude", { text: include }));
+  }
+  const exclude = String(state.scope.exclude || "").trim();
+  if (exclude) {
+    parts.push(tKey("scope.condExclude", { text: exclude }));
+  }
+  return parts.length > 0 ? tKey("scope.conditions", { list: parts.join("；") }) : "";
+}
+
 function renderAll() {
   renderFileSummary();
+  renderScope();
   renderCapability();
   renderRules();
   renderPreview();
@@ -1188,10 +1315,16 @@ function renderFileSummary() {
     els.sourceList.textContent = tKey("empty.sources");
     return;
   }
+  const inScope = new Set(scopedSources().map((source) => source.key));
   const fragment = document.createDocumentFragment();
   for (const source of state.sources.slice(0, 18)) {
     const item = document.createElement("span");
     item.textContent = source.name;
+    // Filtered-out files stay listed so the filter reads as "set aside", not "deleted".
+    if (!inScope.has(source.key)) {
+      item.classList.add("is-out-of-scope");
+      item.title = tKey("scope.outOfScope");
+    }
     fragment.append(item);
   }
   if (state.sources.length > 18) {
@@ -1829,7 +1962,7 @@ function reactToPet() {
 }
 
 function renderSample() {
-  const sample = state.sources[0]?.name || state.template?.name || "50-INDS-AT-52602_0.pdf";
+  const sample = scopedSources()[0]?.name || state.template?.name || "50-INDS-AT-52602_0.pdf";
   const base = sample.replace(/\.[^.]+$/, "");
   const ext = getFileName(sample).slice(base.length);
   const target = els.targetSelect.value;
