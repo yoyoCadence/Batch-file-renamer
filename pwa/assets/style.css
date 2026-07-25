@@ -905,6 +905,49 @@ mark {
   font-size: 0.9rem;
 }
 
+.rule-item[draggable="true"] {
+  cursor: grab;
+}
+
+.rule-item.dragging {
+  opacity: 0.4;
+}
+
+.rule-item.is-disabled {
+  opacity: 0.5;
+}
+
+/* Grid (auto | flexible | auto) is deterministic: the middle column shrinks and the
+   action buttons keep their natural width, so they never overflow the clipped panel.
+   Specificity beats the inherited `.rule-list li { display: flex }`. */
+.rule-list li.rule-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.rule-summary {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.rule-summary strong,
+.rule-summary span {
+  overflow-wrap: anywhere;
+}
+
+.rule-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rule-actions .icon-button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
 .empty-list {
   color: var(--muted);
 }

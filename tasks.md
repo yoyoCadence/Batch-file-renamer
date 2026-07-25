@@ -8,7 +8,6 @@ Use this file as the lightweight task board for this project unless the project 
 
 ## Backlog
 
-- [ ] T032 - Allow individual rules to be enabled/disabled and reordered (drag) instead of remove-only.
 - [ ] T033 - Add a post-execution report / log CSV export capturing per-row success and failure.
 - [ ] T034 - Support drag-and-drop of files onto the app to add source files.
 - [ ] T035 - Add named rule presets and remember the last-used rules/settings via localStorage.
@@ -110,3 +109,8 @@ Use this file as the lightweight task board for this project unless the project 
   - Added `expandDateTokens` to `pwa/assets/rules.js` (yyyy / yy / MM / dd / HH / mm / ss) and threaded a single `now` timestamp through `ruleValue`, `applyRulesToName`, and `buildPreviewRows` so every row in a batch shares one time; only `{...}` groups containing a recognized token are expanded.
   - Added a localized token hint under the Static value field (`.field-hint`).
   - Added unit tests (token formatting, batch threading, invalid-char cleaning), static wiring checks, and a Playwright test with a fixed clock; pinned Playwright to a single worker so the bundled static server is not starved under parallel load.
+- [x] T032 - Allow individual rules to be enabled/disabled and reordered instead of remove-only.
+  - Added an enable/disable checkbox, up/down reorder buttons, and HTML5 drag-and-drop to each rule row; disabled rules are excluded from the preview (`rule.enabled !== false`) and reordering changes the application order.
+  - Fixed a real layout bug found while testing: the rule row used flex `space-between`, which let the action buttons overflow the `overflow: clip` panel and become unclickable; switched the row to a deterministic CSS grid.
+  - Localized the new controls and status messages across all four languages.
+  - Added static wiring checks and Playwright tests for reordering and disabling (verified via preview output), plus a shared e2e fixture that disables the floating pet so it cannot intercept clicks.
