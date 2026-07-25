@@ -1,10 +1,15 @@
 // Shared in-memory fake of the File System Access API for e2e specs. The real API needs
-// a native picker Playwright cannot drive, so we inject a fake directory handle
-// (files a.txt, b.txt) via page.addInitScript and assert against window.__fakeDir.names().
+// a native picker Playwright cannot drive, so we inject a fake directory handle via
+// page.addInitScript and assert against window.__fakeDir.names().
+//
+// Pass a { name: contents } map as the addInitScript argument to control the folder's
+// files; omit it for the default a.txt / b.txt pair. A real directory handle is also what
+// makes rows executable, so specs that need genuine validation statuses (rather than the
+// "preview only" limit) must load sources through this.
 //
 // This function is serialized and injected into the page, so it must be fully
 // self-contained and reference nothing outside its own body.
-export function installFakeFileSystem() {
+export function installFakeFileSystem(initialFiles) {
   const makeFakeDir = (name, initial) => {
     const files = new Map(Object.entries(initial));
     const makeFileHandle = (fileName) => ({
@@ -61,7 +66,7 @@ export function installFakeFileSystem() {
   };
 
   window.showDirectoryPicker = async () => {
-    window.__fakeDir = makeFakeDir("MockFolder", { "a.txt": "AAA", "b.txt": "BBB" });
+    window.__fakeDir = makeFakeDir("MockFolder", initialFiles || { "a.txt": "AAA", "b.txt": "BBB" });
     return window.__fakeDir;
   };
   // The app only feature-detects this; it is not exercised by these tests.

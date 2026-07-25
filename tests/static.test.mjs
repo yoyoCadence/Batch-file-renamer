@@ -463,7 +463,7 @@ test("live preview and per-rule before/after are wired and localized", async () 
   // above it or it is still in its temporal dead zone.
   const initIndex = app.indexOf("\ninit();");
   assert.ok(initIndex > 0);
-  for (const name of ["SAMPLE_FALLBACK", "LIVE_PREVIEW_DELAY"]) {
+  for (const name of ["SAMPLE_FALLBACK", "LIVE_PREVIEW_DELAY", "STATUS_REASONS", "ROW_FIXES"]) {
     const declIndex = app.indexOf(`const ${name} =`);
     assert.ok(declIndex > 0 && declIndex < initIndex, `${name} must be declared before init()`);
   }
@@ -493,6 +493,60 @@ test("live preview and per-rule before/after are wired and localized", async () 
     "guard\\.valueListEmpty",
     "guard\\.needSources",
     "guard\\.valueListCountMismatch"
+  ];
+  for (const key of keys) {
+    assert.equal((settings.match(new RegExp(`"${key}":`, "g")) || []).length, 4, key);
+  }
+});
+
+test("preview diff, status filtering, and row fixes are wired and localized", async () => {
+  const rules = await readFile("pwa/assets/rules.js", "utf8");
+  for (const symbol of ["diffSpan", "sanitizeFilename", "stripTrailingDotOrSpace", "escapeReservedName", "nextAvailableName"]) {
+    assert.match(rules, new RegExp(`export function ${symbol}\\b`), symbol);
+  }
+
+  const index = await readFile("pwa/index.html", "utf8");
+  assert.match(index, /id="statusLegend"/);
+  assert.match(index, /class="legend-chip" data-filter="ok"/);
+  assert.match(index, /id="legendCountWarn"/);
+  assert.match(index, /data-i18n="table\.change"/);
+
+  const app = await readFile("pwa/assets/app.js", "utf8");
+  assert.match(app, /function diffCell/);
+  assert.match(app, /function renderLegend/);
+  assert.match(app, /function toggleStatusFilter/);
+  assert.match(app, /function applyRowFix/);
+  assert.match(app, /state\.statusFilter/);
+  // Filtering must stay a view concern: execution reads state.rows, never the filtered list.
+  assert.doesNotMatch(app, /okRows = visibleRows/);
+
+  const css = await readFile("pwa/assets/style.css", "utf8");
+  assert.match(css, /\.diff-cell del/);
+  assert.match(css, /\.diff-cell ins/);
+  assert.match(css, /\.legend-chip\[data-active="true"\]/);
+  assert.match(css, /\.status-reason/);
+  assert.match(css, /\.fix-button/);
+
+  const settings = await readFile("pwa/assets/settings.js", "utf8");
+  const keys = [
+    "table\\.change",
+    "empty\\.filteredRows",
+    "reason\\.duplicateTarget",
+    "reason\\.targetExists",
+    "reason\\.invalidFilename",
+    "reason\\.reservedName",
+    "reason\\.trailingDotOrSpace",
+    "reason\\.noChange",
+    "reason\\.targetNameEmpty",
+    "reason\\.targetFolderEmpty",
+    "fix\\.autoNumber",
+    "fix\\.sanitize",
+    "fix\\.escapeReserved",
+    "fix\\.stripTrailing",
+    "status\\.fixApplied",
+    "status\\.fixNoChange",
+    "status\\.rowFilterOn",
+    "status\\.rowFilterOff"
   ];
   for (const key of keys) {
     assert.equal((settings.match(new RegExp(`"${key}":`, "g")) || []).length, 4, key);

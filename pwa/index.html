@@ -267,10 +267,10 @@
               <strong data-i18n="safety.title">執行安全摘要</strong>
               <p id="executionSummary">尚未產生預覽。</p>
             </div>
-            <div class="status-legend" aria-label="Status legend" data-i18n-aria-label="safety.legend">
-              <span><i class="dot ok"></i><b data-i18n="safety.ok">可執行</b></span>
-              <span><i class="dot warn"></i><b data-i18n="safety.blocked">需處理</b></span>
-              <span><i class="dot error"></i><b data-i18n="safety.error">規則錯誤</b></span>
+            <div id="statusLegend" class="status-legend" role="group" aria-label="Status legend" data-i18n-aria-label="safety.legend">
+              <button type="button" class="legend-chip" data-filter="ok" aria-pressed="false"><i class="dot ok"></i><b data-i18n="safety.ok">可執行</b><em id="legendCountOk">0</em></button>
+              <button type="button" class="legend-chip" data-filter="warn" aria-pressed="false"><i class="dot warn"></i><b data-i18n="safety.blocked">需處理</b><em id="legendCountWarn">0</em></button>
+              <button type="button" class="legend-chip" data-filter="error" aria-pressed="false"><i class="dot error"></i><b data-i18n="safety.error">規則錯誤</b><em id="legendCountError">0</em></button>
             </div>
           </div>
 
@@ -288,7 +288,7 @@
                   <th><span class="sr-only" data-i18n="table.select">選取</span></th>
                   <th data-i18n="table.no">#</th>
                   <th data-i18n="table.action">動作</th>
-                  <th data-i18n="table.source">目前檔名</th>
+                  <th data-i18n="table.change">檔名變化</th>
                   <th data-i18n="table.targetName">目標檔名</th>
                   <th data-i18n="table.targetFolder">目標資料夾</th>
                   <th data-i18n="table.status">狀態</th>

@@ -33,6 +33,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   them as sources, with a drop-here hint and a highlight while dragging. Localized in all
   four languages.
 
+- Preview diff, status filtering, and one-click row repairs (T041): the preview's name
+  column now renders an inline diff (replaced span struck through, new span highlighted)
+  instead of forcing a character-by-character comparison of two plain columns. The status
+  legend became clickable chips that show per-bucket counts and narrow the table to one
+  bucket. Every blocked row states its reason in plain language, and the mechanically
+  fixable ones (duplicate target, target exists, invalid characters, reserved Windows name,
+  trailing dot/space) offer a one-click repair. Localized in all four languages.
 - Live preview and per-rule before/after (T040): the preview table now updates on its own
   (200ms debounce) whenever rules, scope, sources, or the value list change, so editing a
   rule shows its effect without pressing a button. Each rule card shows its own
