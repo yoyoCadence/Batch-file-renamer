@@ -1,5 +1,6 @@
 import {
   buildPreviewRows,
+  executionLogToCsv,
   getFileName,
   parsePreviewCsv,
   planUndoOperations,
@@ -33,6 +34,7 @@ const state = {
   showFullPath: false,
   sourceDirectoryHandle: null,
   lastBatch: null,
+  lastExecutionReport: [],
   ruleDragIndex: null,
   installPrompt: null,
   updateWorker: null,
@@ -169,6 +171,7 @@ const els = {
   importCsvButton: $("importCsvButton"),
   executeButton: $("executeButton"),
   undoButton: $("undoButton"),
+  exportLogButton: $("exportLogButton"),
   csvInput: $("csvInput"),
   targetFolderInput: $("targetFolderInput"),
   pickPreviewOutputFolderButton: $("pickPreviewOutputFolderButton"),
@@ -243,6 +246,7 @@ function init() {
   els.csvInput.addEventListener("change", importCsv);
   els.executeButton.addEventListener("click", executeRows);
   els.undoButton.addEventListener("click", undoLastBatch);
+  els.exportLogButton.addEventListener("click", exportExecutionLog);
   els.pickPreviewOutputFolderButton.addEventListener("click", pickOutputFolder);
   els.applyFolderSelectedButton.addEventListener("click", () => applyFolderLabel("selected"));
   els.applyFolderAllButton.addEventListener("click", () => applyFolderLabel("all"));
@@ -890,7 +894,11 @@ async function executeRows() {
   let done = 0;
   let failed = 0;
   const renames = [];
+  const executedAt = new Date().toISOString();
+  const report = [];
   for (const row of okRows) {
+    let result = "Done";
+    let message = "";
     try {
       if (row.action === "Copy") {
         await executeCopyRow(row);
@@ -906,13 +914,28 @@ async function executeRows() {
       updateRowStatus(row.id, "Done");
     } catch (error) {
       failed += 1;
+      result = "Error";
+      message = error.message;
       updateRowStatus(row.id, `Error: ${error.message}`);
     }
+    report.push({
+      action: row.action,
+      sourceName: row.sourceName,
+      sourcePath: row.sourcePath,
+      targetName: row.targetName,
+      targetFolder: row.targetFolder,
+      targetPath: row.targetPath,
+      result,
+      message,
+      timestamp: executedAt
+    });
     renderPreview();
   }
   // Only renames are reversible; a copy-only batch clears any prior undo entry.
   state.lastBatch = renames.length > 0 ? { renames } : null;
+  state.lastExecutionReport = report;
   updateUndoAvailability();
+  updateExecutionLogAvailability();
   setStatusKey("status.executionDone", { done, failed });
 }
 
@@ -950,6 +973,22 @@ async function undoLastBatch() {
 function updateUndoAvailability() {
   const canUndo = Boolean(state.lastBatch && state.lastBatch.renames.length > 0);
   els.undoButton.hidden = !canUndo;
+}
+
+function exportExecutionLog() {
+  if (!state.lastExecutionReport || state.lastExecutionReport.length === 0) {
+    setStatusKey("status.noExecutionLog");
+    return;
+  }
+  const csv = executionLogToCsv(state.lastExecutionReport);
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  downloadBlob(blob, `rename-log-${stamp}.csv`);
+  setStatusKey("status.logExported");
+}
+
+function updateExecutionLogAvailability() {
+  els.exportLogButton.hidden = state.lastExecutionReport.length === 0;
 }
 
 async function executeCopyRow(row) {

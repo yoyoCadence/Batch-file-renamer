@@ -271,6 +271,23 @@ test("rule enable/disable and reorder controls are wired and localized", async (
   assert.equal((settings.match(/"status\.ruleReordered":/g) || []).length, 4);
 });
 
+test("execution log export is wired and localized", async () => {
+  const rules = await readFile("pwa/assets/rules.js", "utf8");
+  assert.match(rules, /export function executionLogToCsv/);
+
+  const index = await readFile("pwa/index.html", "utf8");
+  assert.match(index, /id="exportLogButton"/);
+
+  const app = await readFile("pwa/assets/app.js", "utf8");
+  assert.match(app, /function exportExecutionLog/);
+  assert.match(app, /state\.lastExecutionReport/);
+  assert.match(app, /function updateExecutionLogAvailability/);
+
+  const settings = await readFile("pwa/assets/settings.js", "utf8");
+  assert.equal((settings.match(/"button\.exportLog":/g) || []).length, 4);
+  assert.equal((settings.match(/"status\.logExported":/g) || []).length, 4);
+});
+
 test("text files do not contain unresolved merge markers", async () => {
   for (const path of textFiles) {
     const text = await readFile(path, "utf8");
