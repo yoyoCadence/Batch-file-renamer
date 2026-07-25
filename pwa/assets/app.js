@@ -1,5 +1,7 @@
 import {
   buildPreviewRows,
+  codedError,
+  errorDetail,
   executionLogToCsv,
   getFileName,
   parsePreviewCsv,
@@ -592,7 +594,7 @@ function addSourceFiles(fileList) {
   state.sources = visibleFiles.map((file, index) => ({
     name: file.name,
     path: file.webkitRelativePath || file.name,
-    folder: "Browser files",
+    folder: tKey("folder.browserFiles"),
     folderKey: "preview",
     key: `file:${index}:${file.name}`,
     ref: {
@@ -793,7 +795,8 @@ async function previewRules() {
     count: Number.parseInt(els.copyCount.value, 10),
     rules: state.rules.filter((rule) => rule.enabled !== false),
     valueListText: els.valueListInput.value,
-    previousRows: state.rows
+    previousRows: state.rows,
+    sourceFolderFallback: tKey("folder.sourceFolder")
   });
 
   if (!result.ok) {
@@ -899,7 +902,7 @@ async function importCsv() {
   }
   try {
     const text = await file.text();
-    state.rows = validateForApp(parsePreviewCsv(text));
+    state.rows = validateForApp(parsePreviewCsv(text, { importedFolderLabel: tKey("folder.imported") }));
     state.selectedRows.clear();
     renderPreview();
     setStatusKey("status.importedCsv", { count: state.rows.length });
@@ -948,7 +951,7 @@ async function executeRows() {
       failed += 1;
       result = "Error";
       message = error.message;
-      updateRowStatus(row.id, `Error: ${error.message}`);
+      updateRowStatus(row.id, `Error: ${error.message}`, errorDetail(error));
     }
     report.push({
       action: row.action,
@@ -1025,10 +1028,10 @@ function updateExecutionLogAvailability() {
 
 async function executeCopyRow(row) {
   if (!state.outputDirectory?.handle) {
-    throw new Error("Pick an output folder before direct copy execution.");
+    throw codedError("outputFolderMissing", "Pick an output folder before direct copy execution.");
   }
   if (!state.template?.ref) {
-    throw new Error("Template file is missing.");
+    throw codedError("templateMissing", "Template file is missing.");
   }
   await ensurePermission(state.outputDirectory.handle, "readwrite");
   const file = await getSourceFile(state.template.ref);
@@ -1037,10 +1040,10 @@ async function executeCopyRow(row) {
 
 async function executeRenameRow(row) {
   if (row.targetFolderKey !== "source") {
-    throw new Error("Direct rename only supports the selected source folder.");
+    throw codedError("renameSourceOnly", "Direct rename only supports the selected source folder.");
   }
   if (!row.sourceRef?.directoryHandle || !row.sourceRef?.fileHandle) {
-    throw new Error("Pick a source folder to enable direct rename execution.");
+    throw codedError("renameNeedsFolder", "Pick a source folder to enable direct rename execution.");
   }
   const directoryHandle = row.sourceRef.directoryHandle;
   await ensurePermission(directoryHandle, "readwrite");
@@ -1063,7 +1066,7 @@ async function getSourceFile(ref) {
   if (ref.fileHandle) {
     return ref.fileHandle.getFile();
   }
-  throw new Error("Source file handle is missing.");
+  throw codedError("sourceFileMissing", "Source file handle is missing.");
 }
 
 async function fileExists(directoryHandle, fileName) {
@@ -1087,12 +1090,12 @@ async function ensurePermission(handle, mode) {
     return;
   }
   if ((await handle.requestPermission(options)) !== "granted") {
-    throw new Error("File permission was not granted.");
+    throw codedError("permissionDenied", "File permission was not granted.");
   }
 }
 
-function updateRowStatus(id, status) {
-  state.rows = state.rows.map((row) => row.id === id ? { ...row, status } : row);
+function updateRowStatus(id, status, statusDetail = null) {
+  state.rows = state.rows.map((row) => row.id === id ? { ...row, status, statusDetail } : row);
 }
 
 function renderAll() {
@@ -1164,7 +1167,7 @@ function renderRules() {
 
     const summary = document.createElement("div");
     summary.className = "rule-summary";
-    summary.innerHTML = `<strong>${index + 1}. ${escapeHtml(rule.target)}</strong><span>${escapeHtml(describeRule(rule))}</span>`;
+    summary.innerHTML = `<strong>${index + 1}. ${escapeHtml(ruleTargetLabel(rule.target))}</strong><span>${escapeHtml(describeRule(rule))}</span>`;
 
     const actions = document.createElement("div");
     actions.className = "rule-actions";
@@ -1310,7 +1313,7 @@ function renderPreview() {
       textCell(state.showFullPath ? (row.sourcePath || row.sourceName) : row.sourceName, row.sourcePath || row.sourceName),
       cellWith(targetName),
       cellWith(targetFolder),
-      statusCell(row.status)
+      statusCell(row)
     );
     els.previewBody.append(tr);
   }
@@ -1864,6 +1867,12 @@ function describeRule(rule) {
   return `${target} ${value}`;
 }
 
+// The rule form and the rule cards name the same four targets, so both read the shared
+// `option.*` labels instead of showing the internal enum value.
+function ruleTargetLabel(target) {
+  return tKey(`option.${String(target || "Segment").toLowerCase()}`);
+}
+
 function statusKind(status) {
   if (status === "OK") {
     return "ok";
@@ -1886,11 +1895,11 @@ function textCell(text, title = "") {
   return td;
 }
 
-function statusCell(status) {
+function statusCell(row) {
   const td = document.createElement("td");
   const badge = document.createElement("span");
-  badge.className = `status-pill ${statusKind(status)}`;
-  badge.textContent = translateStatus(status);
+  badge.className = `status-pill ${statusKind(row.status)}`;
+  badge.textContent = translateStatus(row);
   td.append(badge);
   return td;
 }
@@ -1924,12 +1933,20 @@ function tKey(key, params = {}) {
   return t(state.settings.language, key, params);
 }
 
-function translateStatus(status) {
-  const text = String(status ?? "");
-  if (text.startsWith("Error:")) {
-    return `${tKey("status.error")}: ${text.slice("Error:".length).trim()}`;
+// Non-error statuses are fixed strings with their own translation key. Error statuses keep an
+// English `message` for CSV/log stability, so the readable text comes from `statusDetail`
+// when the failure originated in our own code; errors from the browser have no code and fall
+// back to the raw message.
+function translateStatus(row) {
+  const text = String(row?.status ?? "");
+  if (!text.startsWith("Error:")) {
+    return tKey(`status.${text}`);
   }
-  return tKey(`status.${text}`);
+  const detail = row?.statusDetail;
+  const body = detail?.code
+    ? tKey(`error.${detail.code}`, detail.params || {})
+    : text.slice("Error:".length).trim();
+  return `${tKey("status.error")}: ${body}`;
 }
 
 function escapeHtml(value) {

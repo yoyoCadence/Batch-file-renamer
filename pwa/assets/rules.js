@@ -4,6 +4,23 @@ export const VALUE_MODES = ["Static", "List", "SeqUp", "SeqDown", "Delete"];
 export const TARGETS = ["Segment", "Character", "Replace", "Case"];
 export const CASE_MODES = ["upper", "lower", "title"];
 
+// Rule and execution failures surface in the preview status column, so each one carries a
+// stable `code` plus `params` that the UI can look up in its translation catalog. The
+// `message` stays English on purpose: it is what lands in CSV exports and execution logs,
+// which must stay stable regardless of the interface language.
+export function codedError(code, message, params = {}) {
+  const error = new Error(message);
+  error.code = code;
+  error.params = params;
+  return error;
+}
+
+// Pull the localizable part off a thrown error, or null for errors raised outside our own
+// code (a browser DOMException, for example) that have no code to translate.
+export function errorDetail(error) {
+  return error?.code ? { code: error.code, params: error.params || {} } : null;
+}
+
 export function parseValueLines(text = "") {
   const lines = String(text).split(/\r?\n/);
   if (lines.length > 0 && lines[lines.length - 1] === "") {
@@ -106,7 +123,10 @@ export function ruleValue(rule, rowIndex, valueLines = [], now = new Date()) {
   }
   if (mode === "List") {
     if (rowIndex >= valueLines.length) {
-      throw new Error(`Value list missing row ${rowIndex + 1}`);
+      throw codedError("valueListMissingRow", `Value list missing row ${rowIndex + 1}`, {
+        row: rowIndex + 1,
+        available: valueLines.length
+      });
     }
     return String(valueLines[rowIndex]);
   }
@@ -147,12 +167,16 @@ export function applyRulesToName(fileName, rules = [], rowIndex = 0, valueLines 
     if (target === "Segment") {
       const delimiter = String(rule.delimiter ?? rule.Delimiter ?? "");
       if (!delimiter) {
-        throw new Error("Delimiter cannot be empty");
+        throw codedError("delimiterEmpty", "Delimiter cannot be empty");
       }
       const parts = base.split(delimiter);
       const segmentNo = toInteger(rule.segmentNo ?? rule.SegmentNo, 1);
       if (segmentNo < 1 || segmentNo > parts.length) {
-        throw new Error(`Segment ${segmentNo} out of range. Parts=${parts.length}`);
+        throw codedError("segmentOutOfRange", `Segment ${segmentNo} out of range. Parts=${parts.length}`, {
+          segmentNo,
+          parts: parts.length,
+          delimiter
+        });
       }
       const fromEnd = Boolean(rule.fromEnd ?? rule.FromEnd);
       const index = fromEnd ? parts.length - segmentNo : segmentNo - 1;
@@ -169,13 +193,16 @@ export function applyRulesToName(fileName, rules = [], rowIndex = 0, valueLines 
     const start = toInteger(rule.charStart ?? rule.CharStart, 1);
     let length = toInteger(rule.charLength ?? rule.CharLength, 0);
     if (start < 1) {
-      throw new Error("Char start must be >= 1");
+      throw codedError("charStartTooSmall", "Char start must be >= 1", { charStart: start });
     }
     if (start > base.length + 1) {
-      throw new Error(`Char start ${start} beyond length ${base.length}`);
+      throw codedError("charStartBeyondLength", `Char start ${start} beyond length ${base.length}`, {
+        charStart: start,
+        length: base.length
+      });
     }
     if (length < 0) {
-      throw new Error("Char length cannot be negative");
+      throw codedError("charLengthNegative", "Char length cannot be negative", { charLength: length });
     }
 
     const zeroIndex = start - 1;
@@ -197,7 +224,7 @@ export function applyRulesToName(fileName, rules = [], rowIndex = 0, valueLines 
 function applyReplace(base, rule) {
   const find = String(rule.find ?? rule.Find ?? "");
   if (find === "") {
-    throw new Error("Find text cannot be empty");
+    throw codedError("findEmpty", "Find text cannot be empty");
   }
   const replacement = cleanPart(String(rule.replaceWith ?? rule.ReplaceWith ?? ""));
   const useRegex = Boolean(rule.useRegex ?? rule.UseRegex);
@@ -207,7 +234,7 @@ function applyReplace(base, rule) {
   try {
     pattern = new RegExp(source, flags);
   } catch (error) {
-    throw new Error(`Invalid regular expression: ${error.message}`);
+    throw codedError("invalidRegex", `Invalid regular expression: ${error.message}`, { message: error.message });
   }
   return base.replace(pattern, replacement);
 }
@@ -226,7 +253,7 @@ function applyCaseTransform(base, rule) {
   if (mode === "title") {
     return base.replace(/[^\W_]+/g, (word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase());
   }
-  throw new Error(`Unknown case mode: ${mode}`);
+  throw codedError("unknownCaseMode", `Unknown case mode: ${mode}`, { mode });
 }
 
 export function buildPreviewRows(options) {
@@ -239,7 +266,10 @@ export function buildPreviewRows(options) {
     rules = [],
     valueListText = "",
     previousRows = [],
-    now = new Date()
+    now = new Date(),
+    // Display-only fallback label for sources that carry no folder of their own. The engine
+    // stays language-agnostic; the app passes a localized label in.
+    sourceFolderFallback = "Source folder"
   } = options;
   const valueLines = parseValueLines(valueListText);
   const usesList = rules.some((rule) => (rule.valueMode || rule.ValueMode) === "List");
@@ -293,7 +323,8 @@ export function buildPreviewRows(options) {
         targetFolder: outputFolder,
         targetFolderKey: "output",
         sourceRef: template.ref || null,
-        status: result.status
+        status: result.status,
+        statusDetail: result.statusDetail
       }));
     }
     return { ok: true, rows: validateRows(rows) };
@@ -326,10 +357,11 @@ export function buildPreviewRows(options) {
       sourcePath: source.path || source.name,
       sourceKey: source.key || source.name,
       targetName: result.targetName,
-      targetFolder: source.folder || "Source folder",
+      targetFolder: source.folder || sourceFolderFallback,
       targetFolderKey: source.folderKey || "source",
       sourceRef: source.ref || null,
-      status: result.status
+      status: result.status,
+      statusDetail: result.statusDetail
     });
   });
 
@@ -350,6 +382,10 @@ export function validateRows(rows, options = {}) {
       next.status = status;
       return next;
     }
+
+    // Any status decided below is a plain validation state that the UI localizes from the
+    // status string alone, so a detail carried over from an earlier rule error is stale.
+    next.statusDetail = null;
 
     if (!String(next.targetFolder || "").trim()) {
       status = "Target folder empty";
@@ -418,7 +454,8 @@ export function executionLogToCsv(entries = []) {
   return lines.join("\r\n");
 }
 
-export function parsePreviewCsv(text) {
+export function parsePreviewCsv(text, options = {}) {
+  const { importedFolderLabel = "Imported" } = options;
   const records = parseCsvRecords(text);
   if (records.length < 2) {
     return [];
@@ -432,7 +469,7 @@ export function parsePreviewCsv(text) {
     const targetPath = data.TargetPath || "";
     const sourcePath = data.SourcePath || "";
     const targetName = data.TargetName || getFileName(targetPath) || getFileName(sourcePath);
-    const targetFolder = data.TargetFolder || getFolderName(targetPath) || getFolderName(sourcePath) || "Imported";
+    const targetFolder = data.TargetFolder || getFolderName(targetPath) || getFolderName(sourcePath) || importedFolderLabel;
     const sourceName = data.SourceName || getFileName(sourcePath);
 
     return makePreviewRow({
@@ -454,12 +491,14 @@ function applyNameResult(fileName, rules, index, valueLines, now) {
   try {
     return {
       targetName: applyRulesToName(fileName, rules, index, valueLines, now),
-      status: "OK"
+      status: "OK",
+      statusDetail: null
     };
   } catch (error) {
     return {
       targetName: fileName,
-      status: `Error: ${error.message}`
+      status: `Error: ${error.message}`,
+      statusDetail: errorDetail(error)
     };
   }
 }
@@ -477,6 +516,7 @@ function makePreviewRow(row) {
     targetFolderKey: row.targetFolderKey,
     targetPath: joinDisplayPath(row.targetFolder, row.targetName),
     status: row.status || "OK",
+    statusDetail: row.statusDetail || null,
     sourceRef: row.sourceRef || null,
     targetExists: Boolean(row.targetExists)
   };

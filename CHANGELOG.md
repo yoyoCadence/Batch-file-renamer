@@ -34,6 +34,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   four languages.
 
 ### Fixed
+- Untranslated interface text (T037): rule cards showed the internal target enum
+  ("Replace", "Segment") instead of the localized label; rule-engine and execution
+  failures showed raw English messages ("Segment 2 out of range. Parts=1") in the
+  status column; and the placeholder folder labels "Browser files" / "Source folder" /
+  "Imported" were hardcoded English. Errors now carry a translatable code plus
+  parameters, and their wording explains how to fix the row. The English message is
+  retained in CSV exports and execution logs so those stay language-independent.
 - Rule-list rows could let their action buttons overflow the clipped rules panel,
   making them unclickable; the row now uses a stable grid layout.
 - Playwright browser verification (`npm run test:e2e`) covering the app shell load,

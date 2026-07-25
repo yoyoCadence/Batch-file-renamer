@@ -305,6 +305,53 @@ test("drag-and-drop source loading is wired and localized", async () => {
   assert.equal((settings.match(/"hint\.dropFiles":/g) || []).length, 4);
 });
 
+test("rule errors and folder labels are localized instead of leaking English", async () => {
+  const rules = await readFile("pwa/assets/rules.js", "utf8");
+  assert.match(rules, /export function codedError/);
+  assert.match(rules, /export function errorDetail/);
+  assert.match(rules, /sourceFolderFallback/);
+  assert.match(rules, /importedFolderLabel/);
+  // Every rule-engine failure must go through codedError so the UI has something to translate.
+  assert.doesNotMatch(rules, /throw new Error\(/);
+
+  const app = await readFile("pwa/assets/app.js", "utf8");
+  assert.match(app, /function ruleTargetLabel/);
+  assert.match(app, /ruleTargetLabel\(rule\.target\)/);
+  // The rule card must not print the raw target enum any more.
+  assert.doesNotMatch(app, /escapeHtml\(rule\.target\)/);
+  assert.match(app, /function translateStatus\(row\)/);
+  assert.match(app, /tKey\(`error\.\$\{detail\.code}`/);
+  assert.match(app, /tKey\("folder\.browserFiles"\)/);
+  assert.match(app, /sourceFolderFallback: tKey\("folder\.sourceFolder"\)/);
+  assert.doesNotMatch(app, /throw new Error\(/);
+
+  const settings = await readFile("pwa/assets/settings.js", "utf8");
+  const localizedKeys = [
+    "folder\\.browserFiles",
+    "folder\\.sourceFolder",
+    "folder\\.imported",
+    "error\\.segmentOutOfRange",
+    "error\\.delimiterEmpty",
+    "error\\.valueListMissingRow",
+    "error\\.charStartTooSmall",
+    "error\\.charStartBeyondLength",
+    "error\\.charLengthNegative",
+    "error\\.findEmpty",
+    "error\\.invalidRegex",
+    "error\\.unknownCaseMode",
+    "error\\.outputFolderMissing",
+    "error\\.templateMissing",
+    "error\\.renameSourceOnly",
+    "error\\.renameNeedsFolder",
+    "error\\.permissionDenied",
+    "error\\.sourceFileMissing"
+  ];
+  for (const key of localizedKeys) {
+    // Each of the 4 languages (zh-Hant, zh-Hans, en, ja) must provide the key.
+    assert.equal((settings.match(new RegExp(`"${key}":`, "g")) || []).length, 4, key);
+  }
+});
+
 test("text files do not contain unresolved merge markers", async () => {
   for (const path of textFiles) {
     const text = await readFile(path, "utf8");

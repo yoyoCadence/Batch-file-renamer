@@ -8,11 +8,40 @@ Use this file as the lightweight task board for this project unless the project 
 
 ## Backlog
 
+> T037-T042 come from the 2026-07-25 usability review of the shipped PWA. They are ordered
+> for implementation: each one is independently shippable, and later tasks assume the earlier
+> ones landed. T035/T036 predate the review and are sequenced last because T041 delivers part
+> of what T036 asks for.
+
+- [ ] T038 - Make preview-only vs executable file sources obvious before the user builds rules.
+  - Files added via "Select files" or drag-and-drop can never execute, but nothing says so until every preview row is blocked.
+  - Add a source-capability badge and disable "Execute OK rows" while no row can actually be written.
+- [ ] T039 - Add a "processing scope" filter strip so users can see and control which files are in scope.
+  - Extension chips derived from the loaded files (each showing its match count), plus name include/exclude text filters.
+  - Show a plain-language summary of the active filter; render filtered-out files as dimmed rather than hiding them.
+- [ ] T040 - Make the preview live and make each rule card show its own before/after.
+  - Debounced auto-preview so editing a rule updates the table without pressing "Check preview".
+  - Each rule card shows before -> after for the first in-scope file, chained through the preceding rules.
+- [ ] T041 - Make the preview table show what changed and how to fix blocked rows.
+  - Highlight the changed span between current and target name.
+  - Make the status legend chips filter the table; give each blocked status a plain-language reason and, where possible, a one-click fix.
+- [ ] T042 - Add beginner rule presets that do not require understanding Segment/Character.
+  - Add prefix / add suffix, change extension, and cleanup (collapse whitespace, strip special characters).
+  - "Change extension" needs rule-engine support: `applyRulesToName` currently always preserves the extension.
 - [ ] T035 - Add named rule presets and remember the last-used rules/settings via localStorage.
-- [ ] T036 - Add preview-row filtering/search and batch exclusion of selected rows from execution.
+- [ ] T036 - Add preview-row search and batch exclusion of selected rows from execution.
+  - Narrowed from the original wording: status-chip filtering moved to T041, so this task covers free-text search and explicit per-row exclusion only.
 
 ## Done
 
+- [x] T037 - Fix untranslated UI leaks: rule-card titles, rule-engine error messages, hardcoded folder labels.
+  - Added `codedError` / `errorDetail` to `pwa/assets/rules.js`: every engine and execution failure now carries a stable `code` plus `params`. The English `message` is deliberately kept because it is what lands in CSV exports and execution logs, which must not change with the interface language.
+  - Rows carry a new `statusDetail` field; `validateRows` clears it whenever a plain validation state replaces a rule error, so a stale reason cannot be shown.
+  - `app.js` `translateStatus(row)` renders `error.<code>` from the catalog, falling back to the raw message for errors thrown by the browser (which have no code). Rule cards read the existing `option.*` labels via a new `ruleTargetLabel`.
+  - Placeholder folder labels are now injected by the caller (`sourceFolderFallback` on `buildPreviewRows`, `importedFolderLabel` on `parsePreviewCsv`) so `rules.js` stays language-agnostic; the engine keeps English defaults.
+  - Error wording is actionable rather than literal, e.g. "Segment 2 out of range. Parts=1" now reads "這個檔名用「-」切不出第 2 段（只有 1 段）。"
+  - 18 new keys localized across all four languages. Added rule-engine unit tests for every error code, a static check that no `throw new Error(` remains in `rules.js`/`app.js`, and `tests/e2e/localized-errors.spec.mjs` verifying the rule card, the error status, and the folder label in zh-TW, en, and ja. `npm run test` 23 passing, `npm run test:e2e` 16 passing.
+  - Known limitation: folder labels are resolved when files are loaded, so switching language does not relabel already-loaded sources. Rows re-render correctly on the next preview.
 - [x] T000 - Initialize project context and initial task board from the project brief.
 - [x] T001 - Extract and audit `batch_file_renamer_v4.zip` to document legacy PowerShell behavior, screens, rules, and file operations.
 - [x] T002 - Confirm the PWA stack, supported browsers, and local file access strategy before implementation.
