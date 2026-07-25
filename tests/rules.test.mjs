@@ -216,4 +216,65 @@ const imported = parsePreviewCsv(csv);
 assert.equal(imported.length, 2);
 assert.equal(imported[0].targetName, "a-final.txt");
 
+// T037: rule failures carry a translatable code + params alongside the English message, so the
+// UI can localize them without the engine depending on a translation catalog.
+assert.equal(errorPreview.rows[0].statusDetail.code, "segmentOutOfRange");
+assert.deepEqual(errorPreview.rows[0].statusDetail.params, { segmentNo: 3, parts: 1, delimiter: "-" });
+assert.equal(errorPreview.rows[0].status, "Error: Segment 3 out of range. Parts=1");
+
+const codedCases = [
+  [{ target: "Segment", delimiter: "", segmentNo: 1, valueMode: "Static", staticValue: "x" }, "delimiterEmpty"],
+  [{ target: "Character", charStart: 0, charLength: 1, valueMode: "Static", staticValue: "x" }, "charStartTooSmall"],
+  [{ target: "Character", charStart: 99, charLength: 1, valueMode: "Static", staticValue: "x" }, "charStartBeyondLength"],
+  [{ target: "Character", charStart: 1, charLength: -1, valueMode: "Static", staticValue: "x" }, "charLengthNegative"],
+  [{ target: "Replace", find: "", replaceWith: "x" }, "findEmpty"],
+  [{ target: "Replace", find: "[", replaceWith: "x", useRegex: true }, "invalidRegex"],
+  [{ target: "Case", caseMode: "sentence" }, "unknownCaseMode"]
+];
+for (const [rule, expectedCode] of codedCases) {
+  const row = buildPreviewRows({
+    mode: "rename",
+    sources: [{ name: "a-b.txt", path: "S/a-b.txt", folder: "S", key: "k" }],
+    rules: [rule]
+  }).rows[0];
+  assert.equal(row.statusDetail?.code, expectedCode, `expected ${expectedCode}`);
+  assert.ok(row.status.startsWith("Error:"), `${expectedCode} should still carry an English message`);
+}
+
+// buildPreviewRows rejects a mismatched value list before any row is built, so this code is
+// only reachable by calling the engine directly.
+assert.throws(
+  () => applyRulesToName("a-b.txt", [{ target: "Segment", delimiter: "-", segmentNo: 1, valueMode: "List" }], 2, ["one"]),
+  (error) => error.code === "valueListMissingRow" && error.params.row === 3 && error.params.available === 1
+);
+
+// A later validation state replaces the rule error, so the stale detail must not linger.
+const clearedDetail = validateRows([
+  { action: "Rename", sourceName: "a.txt", sourcePath: "S/a.txt", targetName: "b.txt", targetFolder: "S", status: "OK", statusDetail: { code: "segmentOutOfRange", params: {} } }
+]);
+assert.equal(clearedDetail[0].statusDetail, null);
+
+// Display-only folder labels are injected by the caller so the engine stays language-agnostic.
+const localizedFallback = buildPreviewRows({
+  mode: "rename",
+  sources: [{ name: "a.txt", path: "a.txt", key: "a" }],
+  rules: [{ target: "Case", caseMode: "upper" }],
+  sourceFolderFallback: "來源資料夾"
+});
+assert.equal(localizedFallback.rows[0].targetFolder, "來源資料夾");
+assert.equal(
+  buildPreviewRows({
+    mode: "rename",
+    sources: [{ name: "a.txt", path: "a.txt", key: "a" }],
+    rules: [{ target: "Case", caseMode: "upper" }]
+  }).rows[0].targetFolder,
+  "Source folder",
+  "the engine keeps an English default when no label is supplied"
+);
+assert.equal(
+  parsePreviewCsv("Action,SourceName,TargetName\nRename,a.txt,b.txt\n", { importedFolderLabel: "匯入的資料" })[0].targetFolder,
+  "匯入的資料"
+);
+assert.equal(parsePreviewCsv("Action,SourceName,TargetName\nRename,a.txt,b.txt\n")[0].targetFolder, "Imported");
+
 console.log("rules tests passed");
