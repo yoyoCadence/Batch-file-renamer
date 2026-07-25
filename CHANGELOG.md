@@ -29,6 +29,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Execution log export (T033): after running a rename/copy batch, an "Export log" button
   downloads a per-row CSV report (action, source, target, result, error message,
   timestamp). Localized in all four languages.
+- Drag-and-drop file loading (T034): drop files from the OS onto the source area to add
+  them as sources, with a drop-here hint and a highlight while dragging. Localized in all
+  four languages.
 
 ### Fixed
 - Rule-list rows could let their action buttons overflow the clipped rules panel,
