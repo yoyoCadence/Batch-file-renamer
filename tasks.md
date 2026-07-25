@@ -13,9 +13,6 @@ Use this file as the lightweight task board for this project unless the project 
 > ones landed. T035/T036 predate the review and are sequenced last because T041 delivers part
 > of what T036 asks for.
 
-- [ ] T039 - Add a "processing scope" filter strip so users can see and control which files are in scope.
-  - Extension chips derived from the loaded files (each showing its match count), plus name include/exclude text filters.
-  - Show a plain-language summary of the active filter; render filtered-out files as dimmed rather than hiding them.
 - [ ] T040 - Make the preview live and make each rule card show its own before/after.
   - Debounced auto-preview so editing a rule updates the table without pressing "Check preview".
   - Each rule card shows before -> after for the first in-scope file, chained through the preceding rules.
@@ -31,6 +28,16 @@ Use this file as the lightweight task board for this project unless the project 
 
 ## Done
 
+- [x] T039 - Add a "processing scope" filter strip so users can see and control which files are in scope.
+  - Added pure scope helpers to `pwa/assets/rules.js` (`EMPTY_SCOPE`, `fileExtension`, `summarizeExtensions`, `isScopeActive`, `matchesScope`, `filterSources`). Scope answers "which files does this batch touch?", which is a different question from the rules' "how does each name change?"; keeping the two separate is what makes the UI explainable.
+  - Added a scope strip to the source panel: extension chips with match counts (most common first), plus case-insensitive "name contains" / "name excludes" fields matching the whole filename.
+  - `describeScope()` renders the active conditions as one plain-language sentence, e.g. "目前處理 8 個檔案中的 2 個。 條件：只看副檔名 .jpg；檔名包含「2024010」；檔名不含「hike」。"
+  - Filtered-out files stay in the source list, dimmed and struck through, so a filter reads as "set aside" rather than "deleted".
+  - `scopedSources()` feeds the preview rows and the live sample, so an out-of-scope file cannot be executed. Loading or clearing sources resets the scope, so a filter from a previous folder cannot silently narrow the next one.
+  - When a filter excludes everything, the app reports that specifically instead of letting the engine emit the misleading "add source files first".
+  - The strip is hidden in copy mode, which works from a single template file.
+  - 15 new keys localized across all four languages. Added unit tests for all six helpers plus their composition with `buildPreviewRows`, static wiring checks, and `tests/e2e/scope-filter.spec.mjs` (6 cases). `npm run test` 25 passing, `npm run test:e2e` 26 passing.
+  - Known limitations: the source list still shows only the first 18 files, so with a narrow filter every visible entry can be dimmed even though in-scope files exist further down (the summary line still reports the true count). Name matching is plain substring; regex was left out to keep the test surface small.
 - [x] T038 - Make preview-only vs executable file sources obvious before the user builds rules.
   - Added a `capability-strip` above the mode panels driven by a new `sourceCapability()` in `app.js`, the single place that answers "can this setup write to disk?". It returns ready / preview / empty for both rename and copy mode.
   - The rule it encodes is the same one `applyExecutionLimits` already enforced per row (execution needs a handle from a directory picker); the difference is that the answer is now shown *before* the user invests time in building rules, instead of appearing as a wall of blocked rows afterwards.

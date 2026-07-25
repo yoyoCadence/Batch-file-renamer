@@ -60,6 +60,57 @@ export function joinDisplayPath(folder, name) {
   return `${String(folder).replace(/[\\/]+$/, "")}/${name || ""}`;
 }
 
+// Scope filtering answers "which files does this batch touch?", which is a separate question
+// from the rules that answer "how does each name change?". Keeping it here makes it pure and
+// unit-testable; the UI only renders the result.
+export const EMPTY_SCOPE = { excludedExtensions: [], include: "", exclude: "" };
+
+export function fileExtension(name) {
+  return splitFilename(name).ext.toLowerCase();
+}
+
+// Extension counts for the chip row, most common first so the dominant file type leads.
+// Files with no extension group under "" and the UI labels that case.
+export function summarizeExtensions(sources = []) {
+  const counts = new Map();
+  for (const source of sources) {
+    const ext = fileExtension(source.name || "");
+    counts.set(ext, (counts.get(ext) || 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([ext, count]) => ({ ext, count }))
+    .sort((a, b) => b.count - a.count || a.ext.localeCompare(b.ext));
+}
+
+export function isScopeActive(scope = EMPTY_SCOPE) {
+  return (scope.excludedExtensions?.length || 0) > 0
+    || String(scope.include || "").trim() !== ""
+    || String(scope.exclude || "").trim() !== "";
+}
+
+// Matching is case-insensitive and runs against the whole filename (extension included),
+// which is what "name contains" means to someone looking at a file listing.
+export function matchesScope(name, scope = EMPTY_SCOPE) {
+  const excluded = new Set((scope.excludedExtensions || []).map((ext) => String(ext).toLowerCase()));
+  if (excluded.has(fileExtension(name))) {
+    return false;
+  }
+  const haystack = String(name).toLowerCase();
+  const include = String(scope.include || "").trim().toLowerCase();
+  if (include && !haystack.includes(include)) {
+    return false;
+  }
+  const exclude = String(scope.exclude || "").trim().toLowerCase();
+  if (exclude && haystack.includes(exclude)) {
+    return false;
+  }
+  return true;
+}
+
+export function filterSources(sources = [], scope = EMPTY_SCOPE) {
+  return sources.filter((source) => matchesScope(source.name || "", scope));
+}
+
 export function hasInvalidFilenameChars(name) {
   INVALID_FILENAME_RE.lastIndex = 0;
   return INVALID_FILENAME_RE.test(String(name));

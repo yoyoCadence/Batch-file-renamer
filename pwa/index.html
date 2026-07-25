@@ -73,6 +73,25 @@
             </div>
             <input id="fileInput" type="file" multiple hidden>
             <p class="hint" data-i18n="hint.rename">選擇來源資料夾可在 Chromium 取得執行權限；資料夾挑選視窗可能只顯示資料夾，若要挑特定檔案請用「選取檔案」。系統與暫存檔會自動略過。</p>
+            <div id="scopeStrip" class="scope-strip" hidden>
+              <div class="scope-header">
+                <strong data-i18n="scope.title">處理範圍</strong>
+                <button id="clearScopeButton" class="ghost-button" type="button" data-i18n="scope.clear">清除篩選</button>
+              </div>
+              <p id="scopeSummary" class="scope-summary" role="status" aria-live="polite"></p>
+              <div id="extensionChips" class="extension-chips" role="group" aria-label="Extensions" data-i18n-aria-label="scope.extensions"></div>
+              <div class="scope-fields">
+                <label>
+                  <span data-i18n="scope.include">檔名包含</span>
+                  <input id="scopeIncludeInput" type="text" data-i18n-placeholder="scope.includePlaceholder" placeholder="例如 2024">
+                </label>
+                <label>
+                  <span data-i18n="scope.exclude">檔名不包含</span>
+                  <input id="scopeExcludeInput" type="text" data-i18n-placeholder="scope.excludePlaceholder" placeholder="例如 備份">
+                </label>
+              </div>
+            </div>
+
             <div id="sourceList" class="file-list" aria-live="polite"></div>
             <p class="drop-hint" data-i18n="hint.dropFiles">或把檔案拖放到這個區塊加入來源（僅供預覽，無法直接改名）。</p>
           </div>
