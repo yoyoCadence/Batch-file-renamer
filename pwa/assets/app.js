@@ -1,5 +1,6 @@
 import {
   EMPTY_SCOPE,
+  applyRulesToName,
   buildPreviewRows,
   codedError,
   errorDetail,
@@ -8,6 +9,7 @@ import {
   getFileName,
   isScopeActive,
   parsePreviewCsv,
+  parseValueLines,
   planUndoOperations,
   rowsToCsv,
   summarizeExtensions,
@@ -45,6 +47,7 @@ const state = {
   lastBatch: null,
   lastExecutionReport: [],
   ruleDragIndex: null,
+  livePreviewTimer: null,
   installPrompt: null,
   updateWorker: null,
   updateDismissed: false,
@@ -99,6 +102,10 @@ const PET_ACTION_DURATIONS = {
   "panic-held": 520
 };
 const SYSTEM_FILE_NAMES = new Set(["desktop.ini", "thumbs.db", "ehthumbs.db", ".ds_store", ".localized"]);
+// Declared here rather than next to their use because `init()` runs at module scope below,
+// and a `const` referenced during that first render would still be in its temporal dead zone.
+const SAMPLE_FALLBACK = "50-INDS-AT-52602_0.pdf";
+const LIVE_PREVIEW_DELAY = 200;
 const $ = (id) => document.getElementById(id);
 
 const els = {
@@ -215,6 +222,7 @@ function init() {
       state.mode = input.value;
       resetPreviewRows();
       updateMode();
+      schedulePreview();
       setStatusKey("status.modeSelected", { mode: tKey(`mode.${state.mode}`) });
     });
   });
@@ -245,6 +253,12 @@ function init() {
   els.copyCount.addEventListener("change", () => {
     resetPreviewRows();
     renderAll();
+    schedulePreview();
+  });
+  // The value list feeds rule output, so it must refresh like any other rule field.
+  els.valueListInput.addEventListener("input", () => {
+    renderRules();
+    schedulePreview();
   });
 
   [
@@ -270,6 +284,7 @@ function init() {
   els.clearRulesButton.addEventListener("click", () => {
     state.rules = [];
     renderRules();
+    schedulePreview();
     setStatusKey("status.rulesCleared");
   });
   els.previewButton.addEventListener("click", previewRules);
@@ -596,6 +611,7 @@ async function pickSourceFolder() {
     state.rows = [];
     state.selectedRows.clear();
     renderAll();
+    schedulePreview();
     setStatusKey(skipped > 0 ? "status.loadedFromFolderWithSkipped" : "status.loadedFromFolder", {
       count: state.sources.length,
       name: directoryHandle.name,
@@ -636,6 +652,7 @@ function addSourceFiles(fileList) {
   state.rows = [];
   state.selectedRows.clear();
   renderAll();
+  schedulePreview();
   setStatusKey(skipped > 0 ? "status.loadedPreviewFilesWithSkipped" : "status.loadedPreviewFiles", {
     count: state.sources.length,
     skipped
@@ -674,6 +691,7 @@ function clearSources() {
   state.rows = [];
   state.selectedRows.clear();
   renderAll();
+  schedulePreview();
   setStatusKey("status.sourceFilesCleared");
 }
 
@@ -697,6 +715,7 @@ async function pickTemplate() {
     };
     resetPreviewRows();
     renderAll();
+    schedulePreview();
     setStatusKey("status.templateSelected", { name: file.name });
   } catch (error) {
     if (error.name !== "AbortError") {
@@ -722,6 +741,7 @@ function addTemplateFromInput() {
   els.templateInput.value = "";
   resetPreviewRows();
   renderAll();
+  schedulePreview();
   setStatusKey("status.templatePreviewSelected", { name: file.name });
 }
 
@@ -740,6 +760,7 @@ async function pickOutputFolder() {
     els.targetFolderInput.value = directoryHandle.name;
     resetPreviewRows();
     renderAll();
+    schedulePreview();
     setStatusKey("status.outputSelected", { name: directoryHandle.name });
   } catch (error) {
     if (error.name !== "AbortError") {
@@ -756,6 +777,7 @@ function clearCopySetup() {
   els.targetFolderInput.value = "";
   resetPreviewRows();
   renderAll();
+  schedulePreview();
   setStatusKey("status.copySetupCleared");
 }
 
@@ -793,6 +815,7 @@ function addRule() {
   state.rules.push(rule);
   renderRules();
   renderSample();
+  schedulePreview();
   setStatusKey("status.ruleAdded", { count: state.rules.length });
 }
 
@@ -818,6 +841,64 @@ function readRuleForm() {
   };
 }
 
+// Rule edits should show their effect without the user having to ask. This runs the same
+// engine as the button, but skips the filesystem collision checks: those need real IO and
+// would fire on every keystroke. The button remains the way to fold in on-disk conflicts.
+function schedulePreview() {
+  window.clearTimeout(state.livePreviewTimer);
+  state.livePreviewTimer = window.setTimeout(runLivePreview, LIVE_PREVIEW_DELAY);
+}
+
+function runLivePreview() {
+  const activeRules = state.rules.filter((rule) => rule.enabled !== false);
+  // Nothing to preview yet is a normal starting state, not a problem to report.
+  if (activeRules.length === 0) {
+    resetPreviewRows();
+    renderPreview();
+    return;
+  }
+  // The scope strip already explains an empty scope; don't repeat it in the status bar.
+  if (state.mode === "rename" && state.sources.length > 0 && scopedSources().length === 0) {
+    resetPreviewRows();
+    renderPreview();
+    return;
+  }
+
+  const result = buildPreviewRows(previewOptions(activeRules));
+  if (!result.ok) {
+    resetPreviewRows();
+    renderPreview();
+    setStatus(guardMessage(result));
+    return;
+  }
+
+  state.rows = validateForApp(result.rows);
+  state.selectedRows.clear();
+  renderPreview();
+}
+
+function previewOptions(activeRules = state.rules.filter((rule) => rule.enabled !== false)) {
+  return {
+    mode: state.mode,
+    sources: scopedSources(),
+    template: state.template,
+    outputFolder: state.outputDirectory?.name || "",
+    count: Number.parseInt(els.copyCount.value, 10),
+    rules: activeRules,
+    valueListText: els.valueListInput.value,
+    previousRows: state.rows,
+    sourceFolderFallback: tKey("folder.sourceFolder")
+  };
+}
+
+// Engine guards keep an English `message` for stability; render the localized text when the
+// guard identified itself with a code.
+function guardMessage(result) {
+  return result.messageCode
+    ? tKey(`guard.${result.messageCode}`, result.messageParams || {})
+    : result.message;
+}
+
 async function previewRules() {
   // Files exist but the filter excludes all of them: say that instead of letting the engine
   // report the misleading "add source files first".
@@ -826,25 +907,17 @@ async function previewRules() {
     return;
   }
 
-  const result = buildPreviewRows({
-    mode: state.mode,
-    sources: scopedSources(),
-    template: state.template,
-    outputFolder: state.outputDirectory?.name || "",
-    count: Number.parseInt(els.copyCount.value, 10),
-    rules: state.rules.filter((rule) => rule.enabled !== false),
-    valueListText: els.valueListInput.value,
-    previousRows: state.rows,
-    sourceFolderFallback: tKey("folder.sourceFolder")
-  });
+  const result = buildPreviewRows(previewOptions());
 
   if (!result.ok) {
     state.rows = result.rows;
     renderPreview();
-    setStatus(result.message);
+    setStatus(guardMessage(result));
     return;
   }
 
+  // Unlike the live pass, this folds in on-disk collision checks, which is why the button
+  // still exists once preview updates automatically.
   state.rows = await revalidateWithFilesystem(result.rows);
   state.selectedRows.clear();
   renderPreview();
@@ -1154,6 +1227,7 @@ function onScopeChanged() {
   // A narrowed scope means the existing rows no longer describe what would run.
   resetPreviewRows();
   renderAll();
+  schedulePreview();
 }
 
 function toggleExtension(ext) {
@@ -1335,7 +1409,39 @@ function renderFileSummary() {
   els.sourceList.append(fragment);
 }
 
+function sampleName() {
+  return scopedSources()[0]?.name || state.template?.name || SAMPLE_FALLBACK;
+}
+
+// Per-rule before -> after for the first in-scope file. Each entry starts from the previous
+// rule's output, so the cards read as a chain and show what that one rule contributes --
+// unlike the draft sample strip, which only reflects the rule currently being edited.
+// Disabled rules are skipped without advancing the chain, matching how the preview runs.
+function ruleChainPreviews() {
+  const valueLines = parseValueLines(els.valueListInput.value);
+  const results = [];
+  let current = sampleName();
+
+  for (const rule of state.rules) {
+    if (rule.enabled === false) {
+      results.push({ disabled: true });
+      continue;
+    }
+    try {
+      const after = applyRulesToName(current, [rule], 0, valueLines);
+      results.push({ before: current, after });
+      current = after;
+    } catch (error) {
+      // A broken rule stops contributing but must not hide the rules after it, so the chain
+      // carries on from the last good name.
+      results.push({ detail: errorDetail(error), message: error.message });
+    }
+  }
+  return results;
+}
+
 function renderRules() {
+  const chain = ruleChainPreviews();
   els.ruleList.innerHTML = "";
   if (state.rules.length === 0) {
     const empty = document.createElement("li");
@@ -1364,6 +1470,7 @@ function renderRules() {
     const summary = document.createElement("div");
     summary.className = "rule-summary";
     summary.innerHTML = `<strong>${index + 1}. ${escapeHtml(ruleTargetLabel(rule.target))}</strong><span>${escapeHtml(describeRule(rule))}</span>`;
+    summary.append(rulePreviewNode(chain[index]));
 
     const actions = document.createElement("div");
     actions.className = "rule-actions";
@@ -1392,6 +1499,7 @@ function renderRules() {
       state.rules.splice(index, 1);
       resetPreviewRows();
       renderAll();
+      schedulePreview();
       setStatusKey("status.ruleRemoved");
     });
 
@@ -1428,6 +1536,37 @@ function renderRules() {
   });
 }
 
+function rulePreviewNode(entry) {
+  const node = document.createElement("span");
+  node.className = "rule-preview";
+
+  if (!entry || entry.disabled) {
+    node.dataset.kind = "disabled";
+    node.textContent = tKey("rule.previewDisabled");
+    return node;
+  }
+  if (entry.detail || entry.message) {
+    node.dataset.kind = "error";
+    node.textContent = entry.detail?.code
+      ? tKey(`error.${entry.detail.code}`, entry.detail.params || {})
+      : entry.message;
+    return node;
+  }
+
+  node.dataset.kind = entry.before === entry.after ? "nochange" : "change";
+  const before = document.createElement("b");
+  before.textContent = entry.before;
+  const arrow = document.createElement("i");
+  arrow.textContent = "→";
+  const after = document.createElement("b");
+  after.textContent = entry.after;
+  node.append(before, arrow, after);
+  if (entry.before === entry.after) {
+    node.title = tKey("rule.previewNoChange");
+  }
+  return node;
+}
+
 function toggleRuleEnabled(index, enabled) {
   const rule = state.rules[index];
   if (!rule) {
@@ -1436,6 +1575,7 @@ function toggleRuleEnabled(index, enabled) {
   rule.enabled = enabled;
   resetPreviewRows();
   renderAll();
+  schedulePreview();
   setStatusKey(enabled ? "status.ruleEnabled" : "status.ruleDisabled");
 }
 
@@ -1447,6 +1587,7 @@ function moveRule(from, to) {
   state.rules.splice(to, 0, moved);
   resetPreviewRows();
   renderAll();
+  schedulePreview();
   setStatusKey("status.ruleReordered");
 }
 
@@ -1962,7 +2103,7 @@ function reactToPet() {
 }
 
 function renderSample() {
-  const sample = scopedSources()[0]?.name || state.template?.name || "50-INDS-AT-52602_0.pdf";
+  const sample = sampleName();
   const base = sample.replace(/\.[^.]+$/, "");
   const ext = getFileName(sample).slice(base.length);
   const target = els.targetSelect.value;

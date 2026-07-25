@@ -33,6 +33,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   them as sources, with a drop-here hint and a highlight while dragging. Localized in all
   four languages.
 
+- Live preview and per-rule before/after (T040): the preview table now updates on its own
+  (200ms debounce) whenever rules, scope, sources, or the value list change, so editing a
+  rule shows its effect without pressing a button. Each rule card shows its own
+  `before -> after` for the first in-scope file, chained through the preceding rules, so a
+  rule stack can be read one contribution at a time; disabled rules say so and broken rules
+  show a localized reason. The preview button keeps the filesystem collision check that the
+  live pass deliberately skips, and is relabelled "Recheck (with disk)" with a tooltip
+  explaining the split. Engine guard messages ("no rules yet", "value list does not match
+  the file count", …) now carry a code and are localized instead of surfacing raw English.
+  Localized in all four languages.
 - Processing scope filter (T039): the source panel now has a scope strip that controls
   which of the loaded files a batch touches, separately from the rules that decide how
   each name changes. Extension chips (each showing its match count) toggle file types in
