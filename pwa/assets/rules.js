@@ -1,8 +1,10 @@
 const INVALID_FILENAME_RE = /[<>:"/\\|?*\x00-\x1f]/g;
 
 export const VALUE_MODES = ["Static", "List", "SeqUp", "SeqDown", "Delete"];
-export const TARGETS = ["Segment", "Character", "Replace", "Case"];
+export const TARGETS = ["Segment", "Character", "Replace", "Case", "Affix", "Extension", "Cleanup"];
 export const CASE_MODES = ["upper", "lower", "title"];
+export const AFFIX_POSITIONS = ["prefix", "suffix"];
+export const CLEANUP_MODES = ["trimSpaces", "spacesToUnderscore", "removeSpecial", "collapseSeparators"];
 
 // Rule and execution failures surface in the preview status column, so each one carries a
 // stable `code` plus `params` that the UI can look up in its translation catalog. The
@@ -260,8 +262,10 @@ export function ruleValue(rule, rowIndex, valueLines = [], now = new Date()) {
 }
 
 export function applyRulesToName(fileName, rules = [], rowIndex = 0, valueLines = [], now = new Date()) {
-  const { base: originalBase, ext } = splitFilename(fileName);
+  const { base: originalBase, ext: originalExt } = splitFilename(fileName);
   let base = originalBase;
+  // The extension used to be fixed for the whole pass; the Extension target can now change it.
+  let ext = originalExt;
 
   for (const rule of rules) {
     const target = rule.target || rule.Target || "Segment";
@@ -273,6 +277,21 @@ export function applyRulesToName(fileName, rules = [], rowIndex = 0, valueLines 
 
     if (target === "Case") {
       base = applyCaseTransform(base, rule);
+      continue;
+    }
+
+    if (target === "Affix") {
+      base = applyAffix(base, rule, now);
+      continue;
+    }
+
+    if (target === "Extension") {
+      ext = applyExtensionChange(rule);
+      continue;
+    }
+
+    if (target === "Cleanup") {
+      base = applyCleanup(base, rule);
       continue;
     }
 
@@ -330,6 +349,54 @@ export function applyRulesToName(fileName, rules = [], rowIndex = 0, valueLines 
   }
 
   return `${base}${ext}`;
+}
+
+// Add fixed text to the front or back of the base name. This is the beginner-facing way to
+// do what previously required a Character rule with length 0 -- correct, but nobody guesses it.
+// Date tokens are expanded here too, matching Static values.
+function applyAffix(base, rule, now) {
+  const text = cleanPart(expandDateTokens(String(rule.affixText ?? rule.AffixText ?? ""), now));
+  if (text === "") {
+    throw codedError("affixTextEmpty", "Affix text cannot be empty");
+  }
+  const position = String(rule.affixPosition ?? rule.AffixPosition ?? "prefix");
+  if (position === "prefix") {
+    return `${text}${base}`;
+  }
+  if (position === "suffix") {
+    return `${base}${text}`;
+  }
+  throw codedError("unknownAffixPosition", `Unknown affix position: ${position}`, { position });
+}
+
+// Replace the extension. Returns the new extension including its leading dot; any dots the
+// user typed are stripped first so both "jpg" and ".jpg" work.
+function applyExtensionChange(rule) {
+  const raw = String(rule.newExtension ?? rule.NewExtension ?? "").trim();
+  const cleaned = cleanPart(raw.replace(/^\.+/, "")).trim();
+  if (cleaned === "") {
+    throw codedError("extensionEmpty", "New extension cannot be empty");
+  }
+  return `.${cleaned}`;
+}
+
+// Common tidy-ups that would otherwise need a regex. `removeSpecial` keeps letters and
+// digits in any script (\p{L}/\p{N}), so CJK filenames survive it.
+function applyCleanup(base, rule) {
+  const mode = String(rule.cleanupMode ?? rule.CleanupMode ?? "trimSpaces");
+  if (mode === "trimSpaces") {
+    return base.replace(/\s+/g, " ").trim();
+  }
+  if (mode === "spacesToUnderscore") {
+    return base.replace(/\s+/g, "_");
+  }
+  if (mode === "removeSpecial") {
+    return base.replace(/[^\p{L}\p{N} \-_.]/gu, "");
+  }
+  if (mode === "collapseSeparators") {
+    return base.replace(/([-_])\1+/g, "$1");
+  }
+  throw codedError("unknownCleanupMode", `Unknown cleanup mode: ${mode}`, { mode });
 }
 
 // Find-and-replace on the base name. `find` is treated literally unless `useRegex`

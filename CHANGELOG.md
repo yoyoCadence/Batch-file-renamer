@@ -33,6 +33,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   them as sources, with a drop-here hint and a highlight while dragging. Localized in all
   four languages.
 
+- Beginner rule presets (T042): three new rule targets that do not require working out
+  segment or character offsets. "Add prefix/suffix" puts fixed text (with date-token
+  support) at the start or end of the name; "Change extension" replaces the extension,
+  which the engine previously could not express at all because `applyRulesToName` always
+  preserved it; "Clean up" offers tidy whitespace, spaces to underscores, remove special
+  characters, and collapse repeated `-`/`_`. Removing special characters keeps letters and
+  digits in any script, so CJK filenames survive. Localized in all four languages.
 - Preview diff, status filtering, and one-click row repairs (T041): the preview's name
   column now renders an inline diff (replaced span struck through, new span highlighted)
   instead of forcing a character-by-character comparison of two plain columns. The status

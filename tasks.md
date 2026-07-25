@@ -13,15 +13,19 @@ Use this file as the lightweight task board for this project unless the project 
 > ones landed. T035/T036 predate the review and are sequenced last because T041 delivers part
 > of what T036 asks for.
 
-- [ ] T042 - Add beginner rule presets that do not require understanding Segment/Character.
-  - Add prefix / add suffix, change extension, and cleanup (collapse whitespace, strip special characters).
-  - "Change extension" needs rule-engine support: `applyRulesToName` currently always preserves the extension.
 - [ ] T035 - Add named rule presets and remember the last-used rules/settings via localStorage.
 - [ ] T036 - Add preview-row search and batch exclusion of selected rows from execution.
   - Narrowed from the original wording: status-chip filtering moved to T041, so this task covers free-text search and explicit per-row exclusion only.
 
 ## Done
 
+- [x] T042 - Add beginner rule presets that do not require understanding Segment/Character.
+  - Added three targets to `pwa/assets/rules.js`: `Affix` (prefix/suffix, with date-token expansion like Static values), `Extension`, and `Cleanup` (trimSpaces / spacesToUnderscore / removeSpecial / collapseSeparators).
+  - `applyRulesToName` previously bound the extension once and re-attached it at the end, so changing an extension was impossible to express. It is now a mutable binding the `Extension` target rebinds, which is why extension changes compose correctly with base-name rules in either order (covered by tests both ways round).
+  - `removeSpecial` uses `\p{L}\p{N}` rather than `A-Za-z0-9`, so Chinese, Japanese, and other non-Latin filenames are not gutted by it. This matters for the project's primary users.
+  - Adding a prefix was previously only possible via a Character rule with `charLength: 0` — correct but undiscoverable. That was the single most common need with the least obvious path.
+  - The sample strip renders these three through the engine rather than re-implementing the transform. The existing Segment/Character branches keep their `<mark>` highlight because they show *which region* is targeted, which an engine result cannot convey.
+  - 22 new keys localized across all four languages. Added rule-engine unit tests (including affix cleaning of path separators, optional leading dot on extensions, multi-dot names, CJK survival, and every error code), static wiring checks, and `tests/e2e/rule-presets.spec.mjs` (7 cases). `npm run test` 28 passing, `npm run test:e2e` 48 passing.
 - [x] T041 - Make the preview table show what changed and how to fix blocked rows.
   - Added `diffSpan()` to `pwa/assets/rules.js` (common prefix + common suffix, with the suffix scan clamped so it cannot overlap the prefix). The preview's source column is now a `diffCell` rendering unchanged text plain, the replaced span in `<del>`, and the new span in `<ins>`; the column header became "檔名變化". Comparing two full names across columns does not scale past a handful of rows, which undercut the whole "preview before you execute" promise on a 100-row batch.
   - The static legend became `.legend-chip` buttons with per-bucket counts that narrow the table. Filtering is view-only: `state.statusFilter` affects rendering, never `executeRows`, which still reads `state.rows`. A static test asserts execution does not read the filtered list.
