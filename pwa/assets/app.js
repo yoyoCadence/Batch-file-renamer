@@ -33,6 +33,7 @@ const state = {
   showFullPath: false,
   sourceDirectoryHandle: null,
   lastBatch: null,
+  ruleDragIndex: null,
   installPrompt: null,
   updateWorker: null,
   updateDismissed: false,
@@ -742,7 +743,8 @@ function readRuleForm() {
     replaceWith: els.replaceInput.value,
     useRegex: els.useRegexInput.checked,
     caseInsensitive: els.caseInsensitiveInput.checked,
-    caseMode: els.caseModeSelect.value
+    caseMode: els.caseModeSelect.value,
+    enabled: true
   };
 }
 
@@ -753,7 +755,7 @@ async function previewRules() {
     template: state.template,
     outputFolder: state.outputDirectory?.name || "",
     count: Number.parseInt(els.copyCount.value, 10),
-    rules: state.rules,
+    rules: state.rules.filter((rule) => rule.enabled !== false),
     valueListText: els.valueListInput.value,
     previousRows: state.rows
   });
@@ -1075,20 +1077,107 @@ function renderRules() {
 
   state.rules.forEach((rule, index) => {
     const item = document.createElement("li");
+    item.className = "rule-item";
+    item.draggable = true;
+    item.dataset.index = String(index);
+    if (rule.enabled === false) {
+      item.classList.add("is-disabled");
+    }
+
+    const enable = document.createElement("input");
+    enable.type = "checkbox";
+    enable.className = "rule-enable";
+    enable.checked = rule.enabled !== false;
+    enable.title = tKey("tooltip.toggleRule");
+    enable.addEventListener("change", () => toggleRuleEnabled(index, enable.checked));
+
     const summary = document.createElement("div");
+    summary.className = "rule-summary";
     summary.innerHTML = `<strong>${index + 1}. ${escapeHtml(rule.target)}</strong><span>${escapeHtml(describeRule(rule))}</span>`;
+
+    const actions = document.createElement("div");
+    actions.className = "rule-actions";
+
+    const up = document.createElement("button");
+    up.type = "button";
+    up.className = "icon-button rule-up";
+    up.textContent = "▲";
+    up.title = tKey("tooltip.moveUp");
+    up.disabled = index === 0;
+    up.addEventListener("click", () => moveRule(index, index - 1));
+
+    const down = document.createElement("button");
+    down.type = "button";
+    down.className = "icon-button rule-down";
+    down.textContent = "▼";
+    down.title = tKey("tooltip.moveDown");
+    down.disabled = index === state.rules.length - 1;
+    down.addEventListener("click", () => moveRule(index, index + 1));
+
     const remove = document.createElement("button");
     remove.type = "button";
-    remove.className = "icon-button";
+    remove.className = "icon-button rule-remove";
     remove.textContent = tKey("button.removeRule");
     remove.addEventListener("click", () => {
       state.rules.splice(index, 1);
-      renderRules();
+      resetPreviewRows();
+      renderAll();
       setStatusKey("status.ruleRemoved");
     });
-    item.append(summary, remove);
+
+    actions.append(up, down, remove);
+
+    item.addEventListener("dragstart", (event) => {
+      state.ruleDragIndex = index;
+      item.classList.add("dragging");
+      if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = "move";
+      }
+    });
+    item.addEventListener("dragend", () => {
+      item.classList.remove("dragging");
+      state.ruleDragIndex = null;
+    });
+    item.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = "move";
+      }
+    });
+    item.addEventListener("drop", (event) => {
+      event.preventDefault();
+      const from = state.ruleDragIndex;
+      if (from === null || from === undefined || from === index) {
+        return;
+      }
+      moveRule(from, index);
+    });
+
+    item.append(enable, summary, actions);
     els.ruleList.append(item);
   });
+}
+
+function toggleRuleEnabled(index, enabled) {
+  const rule = state.rules[index];
+  if (!rule) {
+    return;
+  }
+  rule.enabled = enabled;
+  resetPreviewRows();
+  renderAll();
+  setStatusKey(enabled ? "status.ruleEnabled" : "status.ruleDisabled");
+}
+
+function moveRule(from, to) {
+  if (to < 0 || to >= state.rules.length || from === to) {
+    return;
+  }
+  const [moved] = state.rules.splice(from, 1);
+  state.rules.splice(to, 0, moved);
+  resetPreviewRows();
+  renderAll();
+  setStatusKey("status.ruleReordered");
 }
 
 function renderPreview() {

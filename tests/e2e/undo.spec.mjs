@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures.mjs";
 
 // Concrete browser verification for T028: execute a rename batch, then undo it and
 // confirm the original filenames are restored. The real File System Access API needs

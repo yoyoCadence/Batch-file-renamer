@@ -23,5 +23,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Date/time tokens in Static values (T031): a Static rule value can include tokens like
   {yyyy-MM-dd} or {HH-mm-ss} (yyyy/yy/MM/dd/HH/mm/ss), expanded once per batch so every
   row shares the same timestamp. A localized hint documents the tokens. Localized in all four languages.
+- Rule enable/disable and reordering (T032): each rule row now has an enable/disable
+  toggle plus up/down buttons and drag-and-drop reordering; disabled rules are skipped
+  and rule order affects how rules apply. Localized in all four languages.
+
+### Fixed
+- Rule-list rows could let their action buttons overflow the clipped rules panel,
+  making them unclickable; the row now uses a stable grid layout.
 - Playwright browser verification (`npm run test:e2e`) covering the app shell load,
   the reserved-name preview flow, and a full execute -> undo round trip in Chromium.

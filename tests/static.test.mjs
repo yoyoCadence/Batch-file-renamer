@@ -255,6 +255,22 @@ test("date/time tokens for Static values are wired and localized", async () => {
   assert.equal((settings.match(/"hint\.dateTokens":/g) || []).length, 4);
 });
 
+test("rule enable/disable and reorder controls are wired and localized", async () => {
+  const app = await readFile("pwa/assets/app.js", "utf8");
+  assert.match(app, /function toggleRuleEnabled/);
+  assert.match(app, /function moveRule/);
+  assert.match(app, /state\.ruleDragIndex/);
+  assert.match(app, /rule\.enabled !== false/);
+
+  const css = await readFile("pwa/assets/style.css", "utf8");
+  assert.match(css, /\.rule-item\.is-disabled/);
+  assert.match(css, /\.rule-actions/);
+
+  const settings = await readFile("pwa/assets/settings.js", "utf8");
+  assert.equal((settings.match(/"tooltip\.toggleRule":/g) || []).length, 4);
+  assert.equal((settings.match(/"status\.ruleReordered":/g) || []).length, 4);
+});
+
 test("text files do not contain unresolved merge markers", async () => {
   for (const path of textFiles) {
     const text = await readFile(path, "utf8");
