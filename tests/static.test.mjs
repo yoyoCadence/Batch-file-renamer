@@ -288,6 +288,23 @@ test("execution log export is wired and localized", async () => {
   assert.equal((settings.match(/"status\.logExported":/g) || []).length, 4);
 });
 
+test("drag-and-drop source loading is wired and localized", async () => {
+  const app = await readFile("pwa/assets/app.js", "utf8");
+  assert.match(app, /function addSourceFiles/);
+  assert.match(app, /function handleSourceDrop/);
+  assert.match(app, /els\.renameSetup\.addEventListener\("drop"/);
+  assert.match(app, /is-dragover/);
+
+  const index = await readFile("pwa/index.html", "utf8");
+  assert.match(index, /data-i18n="hint\.dropFiles"/);
+
+  const css = await readFile("pwa/assets/style.css", "utf8");
+  assert.match(css, /\.mode-panel\.is-dragover/);
+
+  const settings = await readFile("pwa/assets/settings.js", "utf8");
+  assert.equal((settings.match(/"hint\.dropFiles":/g) || []).length, 4);
+});
+
 test("text files do not contain unresolved merge markers", async () => {
   for (const path of textFiles) {
     const text = await readFile(path, "utf8");

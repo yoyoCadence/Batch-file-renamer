@@ -8,7 +8,6 @@ Use this file as the lightweight task board for this project unless the project 
 
 ## Backlog
 
-- [ ] T034 - Support drag-and-drop of files onto the app to add source files.
 - [ ] T035 - Add named rule presets and remember the last-used rules/settings via localStorage.
 - [ ] T036 - Add preview-row filtering/search and batch exclusion of selected rows from execution.
 
@@ -118,3 +117,7 @@ Use this file as the lightweight task board for this project unless the project 
   - Added an "Export log" button (hidden until a batch runs) that downloads the report via a new pure `executionLogToCsv` helper in `pwa/assets/rules.js`.
   - Localized the button and status messages across all four languages.
   - Added an `executionLogToCsv` unit test, static wiring checks, and a Playwright test that runs a batch against the shared fake File System Access API and verifies the downloaded CSV; extracted the fake FS into a shared e2e helper reused by the undo spec.
+- [x] T034 - Support drag-and-drop of files onto the app to add source files.
+  - Extracted a shared `addSourceFiles` path and added dragover / dragleave / drop handlers on the source panel; dropped files become preview-only sources (same as "Select files").
+  - Added a localized drop hint and an `is-dragover` highlight.
+  - Added static wiring checks and a Playwright test that dispatches a DataTransfer drop and verifies the dropped files become usable sources (preview row produced).

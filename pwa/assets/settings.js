@@ -780,6 +780,7 @@ export const TRANSLATIONS = {
     "desc.regexOff": "純文字",
     "desc.case": "大小寫轉換（{mode}）。",
     "hint.dateTokens": "固定值支援日期 token，例如 {yyyy-MM-dd}、{HH-mm-ss}。",
+    "hint.dropFiles": "或把檔案拖放到這個區塊加入來源。",
     "desc.sequence": "{mode}，起始 {start}，間距 {step}，補零 {pad}。"
   },
   "zh-CN": {
@@ -1010,6 +1011,7 @@ export const TRANSLATIONS = {
     "desc.regexOff": "纯文本",
     "desc.case": "大小写转换（{mode}）。",
     "hint.dateTokens": "固定值支持日期 token，例如 {yyyy-MM-dd}、{HH-mm-ss}。",
+    "hint.dropFiles": "或把文件拖放到这个区块加入来源。",
     "desc.sequence": "{mode}，起始 {start}，间距 {step}，补零 {pad}。"
   },
   en: {
@@ -1240,6 +1242,7 @@ export const TRANSLATIONS = {
     "desc.regexOff": "literal",
     "desc.case": "Case transform ({mode}).",
     "hint.dateTokens": "Static values support date tokens, e.g. {yyyy-MM-dd}, {HH-mm-ss}.",
+    "hint.dropFiles": "Or drop files onto this area to add them as sources.",
     "desc.sequence": "{mode} start {start}, step {step}, pad {pad}."
   },
   ja: {
@@ -1470,6 +1473,7 @@ export const TRANSLATIONS = {
     "desc.regexOff": "リテラル",
     "desc.case": "大文字小文字変換（{mode}）。",
     "hint.dateTokens": "固定値は日付トークンに対応、例：{yyyy-MM-dd}、{HH-mm-ss}。",
+    "hint.dropFiles": "またはこの領域にファイルをドロップして追加できます。",
     "desc.sequence": "{mode}、開始 {start}、ステップ {step}、ゼロ埋め {pad}。"
   }
 };

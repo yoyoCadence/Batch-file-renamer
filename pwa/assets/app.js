@@ -205,6 +205,9 @@ function init() {
   els.addFilesButton.addEventListener("click", () => els.fileInput.click());
   els.clearSourcesButton.addEventListener("click", clearSources);
   els.fileInput.addEventListener("change", addPreviewFiles);
+  els.renameSetup.addEventListener("dragover", handleSourceDragOver);
+  els.renameSetup.addEventListener("dragleave", handleSourceDragLeave);
+  els.renameSetup.addEventListener("drop", handleSourceDrop);
   els.pickTemplateButton.addEventListener("click", pickTemplate);
   els.pickOutputFolderButton.addEventListener("click", pickOutputFolder);
   els.clearCopySetupButton.addEventListener("click", clearCopySetup);
@@ -574,7 +577,12 @@ async function pickSourceFolder() {
 }
 
 function addPreviewFiles() {
-  const files = Array.from(els.fileInput.files || []);
+  addSourceFiles(els.fileInput.files);
+  els.fileInput.value = "";
+}
+
+function addSourceFiles(fileList) {
+  const files = Array.from(fileList || []);
   if (files.length === 0) {
     return;
   }
@@ -594,12 +602,36 @@ function addPreviewFiles() {
   }));
   state.rows = [];
   state.selectedRows.clear();
-  els.fileInput.value = "";
   renderAll();
   setStatusKey(skipped > 0 ? "status.loadedPreviewFilesWithSkipped" : "status.loadedPreviewFiles", {
     count: state.sources.length,
     skipped
   });
+}
+
+function handleSourceDragOver(event) {
+  event.preventDefault();
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = "copy";
+  }
+  els.renameSetup.classList.add("is-dragover");
+}
+
+function handleSourceDragLeave(event) {
+  // Ignore moves between child elements; only clear when leaving the panel.
+  if (event.currentTarget.contains(event.relatedTarget)) {
+    return;
+  }
+  els.renameSetup.classList.remove("is-dragover");
+}
+
+function handleSourceDrop(event) {
+  event.preventDefault();
+  els.renameSetup.classList.remove("is-dragover");
+  const files = event.dataTransfer?.files;
+  if (files && files.length > 0) {
+    addSourceFiles(files);
+  }
 }
 
 function clearSources() {

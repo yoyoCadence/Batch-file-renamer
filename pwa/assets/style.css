@@ -867,6 +867,19 @@ textarea {
   line-height: 1.35;
 }
 
+.drop-hint {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.mode-panel.is-dragover {
+  outline: 2px dashed var(--muted);
+  outline-offset: 4px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+}
+
 mark {
   background: #f3ca72;
   color: #1f2623;
