@@ -33,6 +33,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   them as sources, with a drop-here hint and a highlight while dragging. Localized in all
   four languages.
 
+- Preview row search and batch exclusion (T036): a search box narrows the preview to rows
+  whose current or target name matches, combining with the status-chip filter from T041.
+  Because searching only changes the view, the summary says so explicitly while a filter is
+  active, so nobody can search, see three rows, and assume only those three will run.
+  Separately, checked rows can be explicitly excluded from the batch (and put back); an
+  excluded row shows as "Excluded" with its reason, is struck through, and is skipped by
+  execute. Exclusions are keyed to stable row ids, so they survive rule edits, and are
+  cleared when a different source set is loaded. Localized in all four languages.
 - Named rule presets and remembered rules (T035): the rule stack, value list, and mode are
   saved to localStorage and restored on the next visit, so reopening the app no longer
   starts from an empty builder. Rule sets can also be saved under a name, reloaded, and

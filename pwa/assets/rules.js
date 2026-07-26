@@ -553,7 +553,9 @@ export function buildPreviewRows(options) {
     for (let index = 0; index < rowCount; index += 1) {
       const result = applyNameResult(template.name, rules, index, valueLines, now);
       rows.push(makePreviewRow({
-        id: `copy-${Date.now()}-${index}`,
+        // Deliberately stable across rebuilds (no timestamp): the app keys per-row state such
+        // as selection and exclusion off the id, and that must survive a re-preview.
+        id: `copy-${index}`,
         action: "Copy",
         sourceName: template.name,
         sourcePath: template.path || template.name,
