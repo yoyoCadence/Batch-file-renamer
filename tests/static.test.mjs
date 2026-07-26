@@ -141,7 +141,7 @@ test("generated pet action assets exist and are transparent pngs", async () => {
 
 test("service worker caches all project-bound runtime assets", async () => {
   const worker = await readFile("pwa/service-worker.js", "utf8");
-  assert.match(worker, /batch-file-renamer-v6/);
+  assert.match(worker, /batch-file-renamer-v7/);
   assert.match(worker, /SKIP_WAITING/);
   for (const asset of [
     "./assets/settings.js",

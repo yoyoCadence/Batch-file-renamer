@@ -13,12 +13,14 @@ Use this file as the lightweight task board for this project unless the project 
 > ones landed. T035/T036 predate the review and are sequenced last because T041 delivers part
 > of what T036 asks for.
 
-- [ ] T043 - Refresh README.md / README.en.md / README.ja.md for the feature set after T035-T042.
-  - Proposed while finishing T036, not implemented: the three READMEs still describe the app as it was before the 2026-07-25 usability review and do not mention the scope filter, live preview, per-rule before/after, preview diff, one-click row repairs, rule presets, or the beginner rule targets.
-  - Out of scope for any single feature task, but it is now the main handoff gap.
 
 ## Done
 
+- [x] T043 - Refresh the three READMEs, fix the stale service worker cache version, and update the AGENTS.md technical state.
+  - **Found and fixed a real shipping bug while doing the docs pass.** `CACHE_NAME` was still `batch-file-renamer-v6` after T035-T042 changed `index.html` and every file under `assets/`. The service worker's fetch handler is cache-first with no revalidation, and a browser only installs a new worker when `service-worker.js` itself changes bytes — so every returning user would have kept serving the old build and seen none of those eight changes. Bumped to v7 and verified in a real browser that the app registers and caches under the new name.
+  - Added a comment at the `CACHE_NAME` declaration, a bolded rule in AGENTS.md §0.1, and a note in all three READMEs, because the failure is silent: everything looks fine locally and in a fresh browser profile.
+  - Rewrote the READMEs' feature sections around the three questions the app now answers (which files, how names change, confirm before executing), added a workflow section, and documented what does and does not persist. All three kept structurally in sync (10 sections each).
+  - Refreshed AGENTS.md §0.1: storage model (three localStorage keys plus the untrusted-input rule), test coverage (two suites, and why the e2e layer exists), and the cache-bump requirement.
 - [x] T036 - Add preview-row search and batch exclusion of selected rows from execution.
   - Narrowed from the original wording: status-chip filtering landed in T041, so this task covered free-text search and explicit per-row exclusion only.
   - Added `filterVisibleRows()` (status bucket + free-text match on either name) and `toggleExclusion()`. Search and status filtering are view concerns; exclusion is deliberate intent and really does gate execution, via a status set in `applyExecutionLimits`.
