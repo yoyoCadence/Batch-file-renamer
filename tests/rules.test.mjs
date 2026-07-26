@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   EMPTY_SCOPE,
+  TARGETS,
   applyRulesToName,
   buildPreviewRows,
   cleanPart,
@@ -413,5 +414,55 @@ const repaired = validateRows([
   { action: "Rename", sourceName: "s2.txt", sourcePath: "S/s2.txt", targetName: nextAvailableName("dup.txt", new Set(["s/dup.txt"]), "S"), targetFolder: "S", status: "OK" }
 ]);
 assert.deepEqual(repaired.map((row) => row.status), ["OK", "OK"]);
+
+// T042: beginner presets that avoid Segment/Character arithmetic.
+const affix = (position, text) => [{ target: "Affix", affixPosition: position, affixText: text }];
+assert.equal(applyRulesToName("photo.jpg", affix("prefix", "2024_")), "2024_photo.jpg");
+assert.equal(applyRulesToName("photo.jpg", affix("suffix", "_final")), "photo_final.jpg");
+assert.equal(applyRulesToName("noext", affix("prefix", "x-")), "x-noext");
+// Affix text is cleaned like any other rule value, so it cannot inject path separators.
+assert.equal(applyRulesToName("a.txt", affix("prefix", "b/c")), "b_ca.txt");
+assert.equal(
+  applyRulesToName("a.txt", affix("prefix", "{yyyy}-"), 0, [], new Date(2026, 6, 26)),
+  "2026-a.txt",
+  "affix text expands date tokens like a Static value"
+);
+assert.throws(() => applyRulesToName("a.txt", affix("prefix", "")), (e) => e.code === "affixTextEmpty");
+assert.throws(() => applyRulesToName("a.txt", affix("middle", "x")), (e) => e.code === "unknownAffixPosition");
+
+// Extension: the one transform the engine previously could not express at all.
+const ext = (value) => [{ target: "Extension", newExtension: value }];
+assert.equal(applyRulesToName("photo.jpeg", ext("jpg")), "photo.jpg");
+assert.equal(applyRulesToName("photo.jpeg", ext(".jpg")), "photo.jpg", "a leading dot is optional");
+assert.equal(applyRulesToName("noext", ext("txt")), "noext.txt", "a file with no extension gains one");
+assert.equal(applyRulesToName("a.b.c", ext("z")), "a.b.z", "only the last extension is replaced");
+assert.throws(() => applyRulesToName("a.txt", ext("  ")), (e) => e.code === "extensionEmpty");
+
+// Extension changes compose with rules that act on the base name, in either order.
+assert.equal(
+  applyRulesToName("photo.jpeg", [...ext("jpg"), ...affix("prefix", "new_")]),
+  "new_photo.jpg"
+);
+assert.equal(
+  applyRulesToName("photo.jpeg", [...affix("prefix", "new_"), ...ext("jpg")]),
+  "new_photo.jpg"
+);
+
+const cleanup = (mode) => [{ target: "Cleanup", cleanupMode: mode }];
+assert.equal(applyRulesToName("  a   b  .txt", cleanup("trimSpaces")), "a b.txt");
+assert.equal(applyRulesToName("a b c.txt", cleanup("spacesToUnderscore")), "a_b_c.txt");
+assert.equal(applyRulesToName("a!@#b.txt", cleanup("removeSpecial")), "ab.txt");
+assert.equal(
+  applyRulesToName("報表 2024 最終版.xlsx", cleanup("removeSpecial")),
+  "報表 2024 最終版.xlsx",
+  "CJK letters and digits survive removeSpecial"
+);
+assert.equal(applyRulesToName("a---b___c.txt", cleanup("collapseSeparators")), "a-b_c.txt");
+assert.throws(() => applyRulesToName("a.txt", cleanup("nope")), (e) => e.code === "unknownCleanupMode");
+
+// The new targets are registered so callers enumerating TARGETS see them.
+for (const target of ["Affix", "Extension", "Cleanup"]) {
+  assert.ok(TARGETS.includes(target), target);
+}
 
 console.log("rules tests passed");

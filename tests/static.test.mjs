@@ -553,6 +553,49 @@ test("preview diff, status filtering, and row fixes are wired and localized", as
   }
 });
 
+test("beginner rule presets are wired and localized", async () => {
+  const rules = await readFile("pwa/assets/rules.js", "utf8");
+  assert.match(rules, /"Segment", "Character", "Replace", "Case", "Affix", "Extension", "Cleanup"/);
+  assert.match(rules, /export const AFFIX_POSITIONS/);
+  assert.match(rules, /export const CLEANUP_MODES/);
+  assert.match(rules, /function applyAffix/);
+  assert.match(rules, /function applyExtensionChange/);
+  assert.match(rules, /function applyCleanup/);
+  // The extension is no longer fixed for the whole pass; the Extension target rebinds it.
+  assert.match(rules, /let ext = originalExt/);
+  // removeSpecial must keep letters/digits in any script, or CJK filenames would be gutted.
+  assert.match(rules, /\\p\{L}\\p\{N}/);
+
+  const index = await readFile("pwa/index.html", "utf8");
+  for (const id of ["affixPositionSelect", "affixTextInput", "newExtensionInput", "cleanupModeSelect"]) {
+    assert.match(index, new RegExp(`id="${id}"`), id);
+  }
+  assert.match(index, /value="Affix"/);
+  assert.match(index, /value="Extension"/);
+  assert.match(index, /value="Cleanup"/);
+
+  const app = await readFile("pwa/assets/app.js", "utf8");
+  assert.match(app, /affixText: els\.affixTextInput\.value/);
+  assert.match(app, /newExtension: els\.newExtensionInput\.value/);
+  assert.match(app, /cleanupMode: els\.cleanupModeSelect\.value/);
+  assert.match(app, /rule\.target === "Affix"/);
+  assert.match(app, /els\.extensionField\.hidden = !isExtension/);
+
+  const settings = await readFile("pwa/assets/settings.js", "utf8");
+  const keys = [
+    "option\\.affix", "option\\.extension", "option\\.cleanup",
+    "option\\.prefix", "option\\.suffix",
+    "option\\.trimSpaces", "option\\.spacesToUnderscore", "option\\.removeSpecial", "option\\.collapseSeparators",
+    "field\\.affixPosition", "field\\.affixText", "field\\.newExtension", "field\\.cleanupMode",
+    "placeholder\\.affixText", "placeholder\\.newExtension",
+    "desc\\.affix", "desc\\.extension", "desc\\.cleanup",
+    "error\\.affixTextEmpty", "error\\.unknownAffixPosition", "error\\.extensionEmpty", "error\\.unknownCleanupMode"
+  ];
+  for (const key of keys) {
+    assert.equal((settings.match(new RegExp(`"${key}":`, "g")) || []).length, 4, key);
+  }
+});
+
 test("text files do not contain unresolved merge markers", async () => {
   for (const path of textFiles) {
     const text = await readFile(path, "utf8");

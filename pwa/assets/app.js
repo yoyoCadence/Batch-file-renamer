@@ -206,6 +206,14 @@ const els = {
   caseInsensitiveInput: $("caseInsensitiveInput"),
   caseModeField: $("caseModeField"),
   caseModeSelect: $("caseModeSelect"),
+  affixPositionField: $("affixPositionField"),
+  affixPositionSelect: $("affixPositionSelect"),
+  affixTextField: $("affixTextField"),
+  affixTextInput: $("affixTextInput"),
+  extensionField: $("extensionField"),
+  newExtensionInput: $("newExtensionInput"),
+  cleanupField: $("cleanupField"),
+  cleanupModeSelect: $("cleanupModeSelect"),
   sampleOutput: $("sampleOutput"),
   addRuleButton: $("addRuleButton"),
   clearRulesButton: $("clearRulesButton"),
@@ -312,7 +320,11 @@ function init() {
     els.replaceInput,
     els.useRegexInput,
     els.caseInsensitiveInput,
-    els.caseModeSelect
+    els.caseModeSelect,
+    els.affixPositionSelect,
+    els.affixTextInput,
+    els.newExtensionInput,
+    els.cleanupModeSelect
   ].forEach((control) => control.addEventListener("input", updateRuleControls));
 
   els.addRuleButton.addEventListener("click", addRule);
@@ -828,6 +840,9 @@ function updateRuleControls() {
   const isCharacter = target === "Character";
   const isReplace = target === "Replace";
   const isCase = target === "Case";
+  const isAffix = target === "Affix";
+  const isExtension = target === "Extension";
+  const isCleanup = target === "Cleanup";
   const usesValueMode = isSegment || isCharacter;
   const mode = els.valueModeSelect.value;
   const isSequence = mode === "SeqUp" || mode === "SeqDown";
@@ -848,6 +863,10 @@ function updateRuleControls() {
   els.regexField.hidden = !isReplace;
   els.caseField.hidden = !isReplace;
   els.caseModeField.hidden = !isCase;
+  els.affixPositionField.hidden = !isAffix;
+  els.affixTextField.hidden = !isAffix;
+  els.extensionField.hidden = !isExtension;
+  els.cleanupField.hidden = !isCleanup;
   renderSample();
 }
 
@@ -878,6 +897,10 @@ function readRuleForm() {
     useRegex: els.useRegexInput.checked,
     caseInsensitive: els.caseInsensitiveInput.checked,
     caseMode: els.caseModeSelect.value,
+    affixPosition: els.affixPositionSelect.value,
+    affixText: els.affixTextInput.value,
+    newExtension: els.newExtensionInput.value,
+    cleanupMode: els.cleanupModeSelect.value,
     enabled: true
   };
 }
@@ -2227,6 +2250,19 @@ function renderSample() {
   const ext = getFileName(sample).slice(base.length);
   const target = els.targetSelect.value;
 
+  // Affix / Extension / Cleanup have no "region" to point at, so the sample shows the result
+  // straight from the engine rather than re-implementing the transform to draw a highlight
+  // (which is what the Segment and Character branches below need to do).
+  if (target === "Affix" || target === "Extension" || target === "Cleanup") {
+    try {
+      els.sampleOutput.textContent = applyRulesToName(sample, [readRuleForm()], 0, parseValueLines(els.valueListInput.value));
+    } catch {
+      // Incomplete draft rule (empty affix text, empty extension); keep the untouched sample.
+      els.sampleOutput.textContent = sample;
+    }
+    return;
+  }
+
   if (target === "Replace") {
     const find = els.findInput.value;
     if (find) {
@@ -2300,6 +2336,18 @@ function describeRule(rule) {
   }
   if (rule.target === "Case") {
     return tKey("desc.case", { mode: tKey(`option.${rule.caseMode || "upper"}`) });
+  }
+  if (rule.target === "Affix") {
+    return tKey("desc.affix", {
+      position: tKey(`option.${rule.affixPosition || "prefix"}`),
+      text: rule.affixText
+    });
+  }
+  if (rule.target === "Extension") {
+    return tKey("desc.extension", { extension: rule.newExtension });
+  }
+  if (rule.target === "Cleanup") {
+    return tKey("desc.cleanup", { mode: tKey(`option.${rule.cleanupMode || "trimSpaces"}`) });
   }
   const target = rule.target === "Segment"
     ? tKey("desc.segment", {

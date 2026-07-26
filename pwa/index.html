@@ -138,6 +138,9 @@
                   <option value="Character" data-i18n="option.character">字元</option>
                   <option value="Replace" data-i18n="option.replace">取代</option>
                   <option value="Case" data-i18n="option.case">大小寫</option>
+                  <option value="Affix" data-i18n="option.affix">加前綴／後綴</option>
+                  <option value="Extension" data-i18n="option.extension">改副檔名</option>
+                  <option value="Cleanup" data-i18n="option.cleanup">清理</option>
                 </select>
               </label>
               <label id="directionField">
@@ -205,6 +208,31 @@
               <label id="caseField" class="toggle-row" hidden>
                 <input id="caseInsensitiveInput" type="checkbox">
                 <span data-i18n="field.caseInsensitive">忽略大小寫</span>
+              </label>
+              <label id="affixPositionField" hidden>
+                <span data-i18n="field.affixPosition">位置</span>
+                <select id="affixPositionSelect">
+                  <option value="prefix" data-i18n="option.prefix">加在開頭</option>
+                  <option value="suffix" data-i18n="option.suffix">加在結尾</option>
+                </select>
+              </label>
+              <label id="affixTextField" hidden>
+                <span data-i18n="field.affixText">要加的文字</span>
+                <input id="affixTextInput" type="text" data-i18n-placeholder="placeholder.affixText" placeholder="例如 2024_">
+                <small class="field-hint" data-i18n="hint.dateTokens">支援日期 token，例如 {yyyy-MM-dd}、{HH-mm-ss}。</small>
+              </label>
+              <label id="extensionField" hidden>
+                <span data-i18n="field.newExtension">新的副檔名</span>
+                <input id="newExtensionInput" type="text" data-i18n-placeholder="placeholder.newExtension" placeholder="例如 jpg">
+              </label>
+              <label id="cleanupField" hidden>
+                <span data-i18n="field.cleanupMode">清理方式</span>
+                <select id="cleanupModeSelect">
+                  <option value="trimSpaces" data-i18n="option.trimSpaces">整理空白</option>
+                  <option value="spacesToUnderscore" data-i18n="option.spacesToUnderscore">空白換成底線</option>
+                  <option value="removeSpecial" data-i18n="option.removeSpecial">移除特殊字元</option>
+                  <option value="collapseSeparators" data-i18n="option.collapseSeparators">合併重複的 - 與 _</option>
+                </select>
               </label>
               <label id="caseModeField" hidden>
                 <span data-i18n="field.caseMode">大小寫轉換</span>
