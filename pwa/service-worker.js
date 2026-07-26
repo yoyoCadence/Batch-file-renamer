@@ -1,4 +1,8 @@
-const CACHE_NAME = "batch-file-renamer-v6";
+// Bump this whenever any cached shell file changes. The fetch handler below is cache-first
+// with no revalidation, so a returning user keeps serving the old app.js until a byte change
+// in THIS file makes the browser install a new worker. Shipping app changes without bumping
+// the version means nobody who has already opened the app ever sees them.
+const CACHE_NAME = "batch-file-renamer-v7";
 const APP_SHELL = [
   "./",
   "./index.html",

@@ -90,6 +90,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   cannot act on. Localized in all four languages.
 
 ### Fixed
+- Service worker cache version (T043): `CACHE_NAME` was still `batch-file-renamer-v6` after
+  T035-T042 changed `index.html` and every file under `assets/`. The fetch handler is
+  cache-first with no revalidation, and the browser only installs a new worker when
+  `service-worker.js` itself changes bytes, so anyone who had already opened the app would
+  have kept serving the old build and never seen any of those eight changes. Bumped to
+  `batch-file-renamer-v7`, with the requirement documented in `AGENTS.md` and both READMEs.
 - Untranslated interface text (T037): rule cards showed the internal target enum
   ("Replace", "Segment") instead of the localized label; rule-engine and execution
   failures showed raw English messages ("Segment 2 out of range. Parts=1") in the
