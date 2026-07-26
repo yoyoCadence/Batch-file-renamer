@@ -55,9 +55,13 @@ const state = {
   rows: [],
   selectedRows: new Set(),
   showFullPath: false,
-  // Which status bucket the table is narrowed to, or null for everything. Filtering is a
-  // view concern only -- execution always reads the full row set.
+  // Which status bucket the table is narrowed to, or null for everything. Filtering and
+  // searching are view concerns only -- execution always reads the full row set.
   statusFilter: null,
+  rowSearch: "",
+  // Rows the user explicitly took out of the batch. Unlike the view filters, this DOES change
+  // what executes. Keyed by row id, which is stable across re-previews.
+  excludedRows: new Set(),
   sourceDirectoryHandle: null,
   lastBatch: null,
   lastExecutionReport: [],
@@ -131,6 +135,7 @@ const STATUS_REASONS = {
   "Reserved name": "reason.reservedName",
   "Trailing dot or space": "reason.trailingDotOrSpace",
   "No change": "reason.noChange",
+  Excluded: "reason.excluded",
   "Target name empty": "reason.targetNameEmpty",
   "Target folder empty": "reason.targetFolderEmpty"
 };
@@ -242,6 +247,9 @@ const els = {
   applyFolderSelectedButton: $("applyFolderSelectedButton"),
   applyFolderAllButton: $("applyFolderAllButton"),
   showFullPathInput: $("showFullPathInput"),
+  rowSearchInput: $("rowSearchInput"),
+  excludeSelectedButton: $("excludeSelectedButton"),
+  includeSelectedButton: $("includeSelectedButton"),
   statusLegend: $("statusLegend"),
   legendCountOk: $("legendCountOk"),
   legendCountWarn: $("legendCountWarn"),
@@ -360,6 +368,12 @@ function init() {
   els.pickPreviewOutputFolderButton.addEventListener("click", pickOutputFolder);
   els.applyFolderSelectedButton.addEventListener("click", () => applyFolderLabel("selected"));
   els.applyFolderAllButton.addEventListener("click", () => applyFolderLabel("all"));
+  els.rowSearchInput.addEventListener("input", () => {
+    state.rowSearch = els.rowSearchInput.value;
+    renderPreview();
+  });
+  els.excludeSelectedButton.addEventListener("click", () => toggleExclusion(true));
+  els.includeSelectedButton.addEventListener("click", () => toggleExclusion(false));
   els.statusLegend.addEventListener("click", (event) => {
     const chip = event.target.closest(".legend-chip");
     if (chip) {
@@ -679,6 +693,7 @@ async function pickSourceFolder() {
     }
     state.sources = sources.sort((a, b) => a.name.localeCompare(b.name));
     resetScope();
+    state.excludedRows.clear();
     state.rows = [];
     state.selectedRows.clear();
     renderAll();
@@ -720,6 +735,7 @@ function addSourceFiles(fileList) {
     }
   }));
   resetScope();
+  state.excludedRows.clear();
   state.rows = [];
   state.selectedRows.clear();
   renderAll();
@@ -759,6 +775,7 @@ function clearSources() {
   state.sources = [];
   state.sourceDirectoryHandle = null;
   resetScope();
+  state.excludedRows.clear();
   state.rows = [];
   state.selectedRows.clear();
   renderAll();
@@ -843,6 +860,7 @@ async function pickOutputFolder() {
 function clearCopySetup() {
   state.template = null;
   state.outputDirectory = null;
+  state.excludedRows.clear();
   els.templateInput.value = "";
   els.copyCount.value = "5";
   els.targetFolderInput.value = "";
@@ -1784,9 +1802,16 @@ function renderPreview() {
   els.previewBody.innerHTML = "";
   const counts = summarizeRows();
   renderExecutionSummary(counts);
-  els.previewSummary.textContent = state.rows.length
+  // The counts always describe the whole batch, never the filtered view. When a view filter
+  // hides rows, say so explicitly -- otherwise someone could search, see three rows, and
+  // press execute expecting only those three to run.
+  const shown = filterVisibleRows(state.rows).length;
+  const summary = state.rows.length
     ? tKey("preview.summary", { total: state.rows.length, ok: counts.ok, blocked: counts.blocked })
     : tKey("preview.none");
+  els.previewSummary.textContent = state.rows.length && isViewFiltered()
+    ? `${summary} ${tKey("preview.filteredNote", { shown, total: state.rows.length })}`
+    : summary;
 
   renderLegend(counts);
 
@@ -1797,9 +1822,7 @@ function renderPreview() {
     return;
   }
 
-  const visibleRows = state.statusFilter
-    ? state.rows.filter((row) => statusKind(row.status) === state.statusFilter)
-    : state.rows;
+  const visibleRows = filterVisibleRows(state.rows);
 
   if (visibleRows.length === 0) {
     const row = document.createElement("tr");
@@ -1811,6 +1834,7 @@ function renderPreview() {
   for (const row of visibleRows) {
     const tr = document.createElement("tr");
     tr.dataset.status = statusKind(row.status);
+    tr.dataset.excluded = String(state.excludedRows.has(row.id));
 
     const selected = document.createElement("input");
     selected.type = "checkbox";
@@ -1904,6 +1928,47 @@ function getFolderPart(row) {
   return index > 0 ? path.slice(0, index) : "";
 }
 
+// View-only narrowing: status bucket plus a free-text match on either name. Never used to
+// decide what executes -- see the note on state.statusFilter.
+function filterVisibleRows(rows) {
+  const needle = state.rowSearch.trim().toLowerCase();
+  return rows.filter((row) => {
+    if (state.statusFilter && statusKind(row.status) !== state.statusFilter) {
+      return false;
+    }
+    if (!needle) {
+      return true;
+    }
+    return `${row.sourceName} ${row.targetName}`.toLowerCase().includes(needle);
+  });
+}
+
+function isViewFiltered() {
+  return Boolean(state.statusFilter) || state.rowSearch.trim() !== "";
+}
+
+function toggleExclusion(exclude) {
+  if (state.selectedRows.size === 0) {
+    setStatusKey("status.noSelection");
+    return;
+  }
+  let changed = 0;
+  for (const id of state.selectedRows) {
+    if (exclude ? !state.excludedRows.has(id) : state.excludedRows.has(id)) {
+      changed += 1;
+    }
+    if (exclude) {
+      state.excludedRows.add(id);
+    } else {
+      state.excludedRows.delete(id);
+    }
+  }
+  // Re-run validation so an un-excluded row gets its real status back.
+  state.rows = validateForApp(state.rows);
+  renderPreview();
+  setStatusKey(exclude ? "status.rowsExcluded" : "status.rowsIncluded", { count: changed });
+}
+
 function renderLegend(counts) {
   els.legendCountOk.textContent = String(counts.ok);
   els.legendCountWarn.textContent = String(counts.blocked - counts.error);
@@ -1940,6 +2005,12 @@ function validateForApp(rows) {
 
 function applyExecutionLimits(rows) {
   return rows.map((row) => {
+    // Checked first and regardless of the underlying status: the user said "not this one",
+    // and that answer should not be buried behind another message. The real status is
+    // re-derived if the row is put back in.
+    if (state.excludedRows.has(row.id)) {
+      return { ...row, status: "Excluded" };
+    }
     if (row.status !== "OK") {
       return row;
     }

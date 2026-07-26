@@ -637,6 +637,44 @@ test("rule presets and session memory are wired and localized", async () => {
   }
 });
 
+test("preview row search and batch exclusion are wired and localized", async () => {
+  const index = await readFile("pwa/index.html", "utf8");
+  assert.match(index, /id="rowSearchInput"/);
+  assert.match(index, /id="excludeSelectedButton"/);
+  assert.match(index, /id="includeSelectedButton"/);
+
+  const app = await readFile("pwa/assets/app.js", "utf8");
+  assert.match(app, /function filterVisibleRows/);
+  assert.match(app, /function isViewFiltered/);
+  assert.match(app, /function toggleExclusion/);
+  assert.match(app, /state\.excludedRows/);
+  // Exclusion is deliberate user intent, so it gates execution via the row status.
+  assert.match(app, /state\.excludedRows\.has\(row\.id\)/);
+  // Loading a different source set must not inherit exclusions from the previous one.
+  assert.equal((app.match(/state\.excludedRows\.clear\(\);/g) || []).length, 4);
+
+  const rules = await readFile("pwa/assets/rules.js", "utf8");
+  // Copy row ids must stay stable across rebuilds or per-row state would be lost.
+  assert.match(rules, /id: `copy-\$\{index}`/);
+  assert.doesNotMatch(rules, /copy-\$\{Date\.now\(\)}/);
+
+  const css = await readFile("pwa/assets/style.css", "utf8");
+  assert.match(css, /#previewBody tr\[data-excluded="true"\]/);
+  assert.match(css, /\.row-search/);
+
+  const settings = await readFile("pwa/assets/settings.js", "utf8");
+  const keys = [
+    "preview\\.searchLabel", "preview\\.searchPlaceholder", "preview\\.filteredNote",
+    "button\\.excludeSelected", "button\\.includeSelected",
+    "tooltip\\.excludeSelected", "tooltip\\.includeSelected",
+    "status\\.Excluded", "reason\\.excluded",
+    "status\\.rowsExcluded", "status\\.rowsIncluded", "status\\.noSelection"
+  ];
+  for (const key of keys) {
+    assert.equal((settings.match(new RegExp(`"${key}":`, "g")) || []).length, 4, key);
+  }
+});
+
 test("text files do not contain unresolved merge markers", async () => {
   for (const path of textFiles) {
     const text = await readFile(path, "utf8");

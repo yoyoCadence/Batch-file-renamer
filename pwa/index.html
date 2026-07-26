@@ -312,6 +312,12 @@
           </div>
 
           <div class="preview-options">
+            <label class="row-search">
+              <span class="sr-only" data-i18n="preview.searchLabel">搜尋預覽列</span>
+              <input id="rowSearchInput" type="search" data-i18n-placeholder="preview.searchPlaceholder" placeholder="搜尋檔名…">
+            </label>
+            <button id="excludeSelectedButton" type="button" data-i18n="button.excludeSelected" data-i18n-title="tooltip.excludeSelected" title="把勾選的列排除在執行之外。">排除選取</button>
+            <button id="includeSelectedButton" type="button" data-i18n="button.includeSelected" data-i18n-title="tooltip.includeSelected" title="讓勾選的列重新納入執行。">取消排除</button>
             <label class="toggle-row path-toggle">
               <input id="showFullPathInput" type="checkbox">
               <span data-i18n="preview.showFullPath">顯示完整路徑</span>

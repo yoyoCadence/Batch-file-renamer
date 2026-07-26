@@ -13,11 +13,21 @@ Use this file as the lightweight task board for this project unless the project 
 > ones landed. T035/T036 predate the review and are sequenced last because T041 delivers part
 > of what T036 asks for.
 
-- [ ] T036 - Add preview-row search and batch exclusion of selected rows from execution.
-  - Narrowed from the original wording: status-chip filtering moved to T041, so this task covers free-text search and explicit per-row exclusion only.
+- [ ] T043 - Refresh README.md / README.en.md / README.ja.md for the feature set after T035-T042.
+  - Proposed while finishing T036, not implemented: the three READMEs still describe the app as it was before the 2026-07-25 usability review and do not mention the scope filter, live preview, per-rule before/after, preview diff, one-click row repairs, rule presets, or the beginner rule targets.
+  - Out of scope for any single feature task, but it is now the main handoff gap.
 
 ## Done
 
+- [x] T036 - Add preview-row search and batch exclusion of selected rows from execution.
+  - Narrowed from the original wording: status-chip filtering landed in T041, so this task covered free-text search and explicit per-row exclusion only.
+  - Added `filterVisibleRows()` (status bucket + free-text match on either name) and `toggleExclusion()`. Search and status filtering are view concerns; exclusion is deliberate intent and really does gate execution, via a status set in `applyExecutionLimits`.
+  - Exclusion is checked before every other execution limit, so "I said not this one" is not buried behind another message. The underlying status is untouched, so putting a row back restores its real status.
+  - The summary states the visible/total split whenever a view filter is active. Without it, someone could search, see three rows, press execute, and get the whole batch — the same class of hazard the T041 note guards against.
+  - Made copy-mode row ids stable (`copy-${index}` instead of embedding `Date.now()`), because per-row state such as selection and exclusion is keyed by id and has to survive a re-preview. Rename ids were already stable.
+  - Exclusions are cleared when a different source set is loaded, for the same reason the scope filter is (T039): carrying them into another folder would silently change what runs.
+  - 12 new keys localized across all four languages. Added static wiring checks and `tests/e2e/row-search-exclusion.spec.mjs` (7 cases, including that execute really does skip an excluded row and that exclusions survive a rule change). `npm run test` 36 passing, `npm run test:e2e` 62 passing.
+  - Worth knowing when writing preview tests: a case-only rename validates as "No change", because `normalizePathKey` lowercases paths to match Windows' case-insensitive filesystem. Two tests here were initially wrong for that reason.
 - [x] T035 - Add named rule presets and remember the last-used rules/settings via localStorage.
   - Added `normalizeRule` / `normalizeRules` to `pwa/assets/rules.js`. Anything read back from storage is untrusted — hand-edited, corrupt, or written by a build with different targets — so every field is coerced and unknown targets are dropped. A bad saved preset degrades to "fewer rules" rather than throwing on every preview.
   - Added `loadRulePresets` / `saveRulePresets` / `loadSession` / `saveSession` to `pwa/assets/settings.js`, which already owned localStorage access. Separate keys from the appearance settings so a corrupt value in one cannot take the other down, and clearing presets never resets the theme. Writes are best-effort: a full or blocked storage (private mode) must never interrupt what the user is doing.

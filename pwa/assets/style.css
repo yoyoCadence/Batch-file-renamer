@@ -1192,9 +1192,38 @@ mark {
   padding: 8px 16px;
   border-bottom: 1px solid var(--line);
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
+  gap: 8px;
   background: color-mix(in srgb, var(--surface) 74%, transparent);
+}
+
+.row-search {
+  width: min(240px, 100%);
+  margin-right: auto;
+}
+
+.row-search input {
+  min-height: 30px;
+}
+
+.preview-options button {
+  width: auto;
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 0.84rem;
+}
+
+/* An excluded row stays readable but visibly out of the batch. Keyed off its own attribute
+   rather than the status, so excluded rows still belong to the "needs attention" legend
+   bucket and can be found by filtering. */
+#previewBody tr[data-excluded="true"] {
+  opacity: 0.65;
+}
+
+#previewBody tr[data-excluded="true"] .diff-cell {
+  text-decoration: line-through;
 }
 
 .path-toggle {
