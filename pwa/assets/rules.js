@@ -23,6 +23,56 @@ export function errorDetail(error) {
   return error?.code ? { code: error.code, params: error.params || {} } : null;
 }
 
+// Rules that come back from storage are untrusted: they may be hand-edited, corrupt, or
+// written by an older version that had different targets. Coerce every field to the shape
+// the engine expects and drop anything with an unrecognized target, so a bad saved preset
+// degrades to "fewer rules" instead of throwing on every preview.
+export function normalizeRule(input) {
+  if (!input || typeof input !== "object") {
+    return null;
+  }
+  const target = String(input.target ?? input.Target ?? "");
+  if (!TARGETS.includes(target)) {
+    return null;
+  }
+
+  const integer = (value, fallback) => {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
+  const oneOf = (value, allowed, fallback) => allowed.includes(String(value)) ? String(value) : fallback;
+
+  return {
+    target,
+    fromEnd: Boolean(input.fromEnd ?? input.FromEnd),
+    delimiter: String(input.delimiter ?? input.Delimiter ?? "-"),
+    segmentNo: integer(input.segmentNo ?? input.SegmentNo, 1),
+    charStart: integer(input.charStart ?? input.CharStart, 1),
+    charLength: integer(input.charLength ?? input.CharLength, 0),
+    valueMode: oneOf(input.valueMode ?? input.ValueMode, VALUE_MODES, "Static"),
+    staticValue: String(input.staticValue ?? input.StaticValue ?? ""),
+    seqStart: integer(input.seqStart ?? input.SeqStart, 1),
+    seqStep: integer(input.seqStep ?? input.SeqStep, 1),
+    pad: integer(input.pad ?? input.Pad, 0),
+    find: String(input.find ?? input.Find ?? ""),
+    replaceWith: String(input.replaceWith ?? input.ReplaceWith ?? ""),
+    useRegex: Boolean(input.useRegex ?? input.UseRegex),
+    caseInsensitive: Boolean(input.caseInsensitive ?? input.CaseInsensitive),
+    caseMode: oneOf(input.caseMode ?? input.CaseMode, CASE_MODES, "upper"),
+    affixPosition: oneOf(input.affixPosition ?? input.AffixPosition, AFFIX_POSITIONS, "prefix"),
+    affixText: String(input.affixText ?? input.AffixText ?? ""),
+    newExtension: String(input.newExtension ?? input.NewExtension ?? ""),
+    cleanupMode: oneOf(input.cleanupMode ?? input.CleanupMode, CLEANUP_MODES, "trimSpaces"),
+    // Only an explicit `false` disables a rule; anything else (including a missing field on
+    // rules saved before T032) counts as enabled.
+    enabled: input.enabled !== false
+  };
+}
+
+export function normalizeRules(list) {
+  return Array.isArray(list) ? list.map(normalizeRule).filter(Boolean) : [];
+}
+
 export function parseValueLines(text = "") {
   const lines = String(text).split(/\r?\n/);
   if (lines.length > 0 && lines[lines.length - 1] === "") {

@@ -596,6 +596,47 @@ test("beginner rule presets are wired and localized", async () => {
   }
 });
 
+test("rule presets and session memory are wired and localized", async () => {
+  const rules = await readFile("pwa/assets/rules.js", "utf8");
+  assert.match(rules, /export function normalizeRule\b/);
+  assert.match(rules, /export function normalizeRules\b/);
+
+  const settings = await readFile("pwa/assets/settings.js", "utf8");
+  for (const symbol of ["loadRulePresets", "saveRulePresets", "loadSession", "saveSession"]) {
+    assert.match(settings, new RegExp(`export function ${symbol}\\b`), symbol);
+  }
+  // Separate keys so a corrupt value in one cannot take the others down.
+  assert.match(settings, /"batch-file-renamer\.presets"/);
+  assert.match(settings, /"batch-file-renamer\.session"/);
+
+  const index = await readFile("pwa/index.html", "utf8");
+  assert.match(index, /id="presetSelect"/);
+  assert.match(index, /id="savePresetButton"/);
+  assert.match(index, /id="deletePresetButton"/);
+
+  const app = await readFile("pwa/assets/app.js", "utf8");
+  assert.match(app, /function restoreSession/);
+  assert.match(app, /function persistSession/);
+  assert.match(app, /function savePreset/);
+  assert.match(app, /function loadPreset/);
+  assert.match(app, /function deletePreset/);
+  // Stored rules must be normalized on the way in, both for the session and for presets.
+  assert.equal((app.match(/normalizeRules\(/g) || []).length, 2);
+
+  const css = await readFile("pwa/assets/style.css", "utf8");
+  assert.match(css, /\.preset-bar/);
+
+  const keys = [
+    "preset\\.label", "preset\\.save", "preset\\.delete", "preset\\.choose", "preset\\.none",
+    "preset\\.promptName", "preset\\.confirmDelete",
+    "status\\.presetSaved", "status\\.presetUpdated", "status\\.presetLoaded",
+    "status\\.presetDeleted", "status\\.presetNoRules"
+  ];
+  for (const key of keys) {
+    assert.equal((settings.match(new RegExp(`"${key}":`, "g")) || []).length, 4, key);
+  }
+});
+
 test("text files do not contain unresolved merge markers", async () => {
   for (const path of textFiles) {
     const text = await readFile(path, "utf8");

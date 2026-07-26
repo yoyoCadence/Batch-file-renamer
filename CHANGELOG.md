@@ -33,6 +33,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   them as sources, with a drop-here hint and a highlight while dragging. Localized in all
   four languages.
 
+- Named rule presets and remembered rules (T035): the rule stack, value list, and mode are
+  saved to localStorage and restored on the next visit, so reopening the app no longer
+  starts from an empty builder. Rule sets can also be saved under a name, reloaded, and
+  deleted; saving under an existing name overwrites it. Stored rules are normalized on load,
+  so a preset written by an older version (or corrupt storage) degrades to the rules that
+  are still valid instead of breaking the app. Source files and the scope filter are
+  deliberately not persisted. Localized in all four languages.
 - Beginner rule presets (T042): three new rule targets that do not require working out
   segment or character offsets. "Add prefix/suffix" puts fixed text (with date-token
   support) at the start or end of the name; "Change extension" replaces the extension,
