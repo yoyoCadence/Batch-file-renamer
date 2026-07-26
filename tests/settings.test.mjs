@@ -3,13 +3,19 @@ import assert from "node:assert/strict";
 import {
   DEFAULT_SETTINGS,
   LANGUAGES,
+  MAX_PRESETS,
   PET_DIALOGUES,
   PET_MOTION_MODES,
   PETS,
   TEMPLATES,
   THEMES,
   TRANSLATIONS,
+  loadRulePresets,
+  loadSession,
+  loadSettings,
   normalizeSettings,
+  saveRulePresets,
+  saveSession,
   saveSettings,
   t
 } from "../pwa/assets/settings.js";
@@ -111,4 +117,78 @@ test("every pet has at least fifteen non-question dialogue lines", () => {
     assert.ok(lines.length >= 15, `${pet.id} should have at least 15 dialogue lines`);
     assert.ok(lines.every((line) => !/[?？]/.test(line)), `${pet.id} lines should not ask questions`);
   }
+});
+
+// T035: rule presets and the last-used session persist separately from appearance settings.
+function fakeStorage(initial = {}) {
+  const store = new Map(Object.entries(initial));
+  return {
+    store,
+    getItem: (key) => store.get(key) ?? null,
+    setItem: (key, value) => store.set(key, value)
+  };
+}
+
+test("rule presets round trip and reject malformed entries", () => {
+  const storage = fakeStorage();
+  saveRulePresets([
+    { id: "a", name: "Photos", rules: [{ target: "Case" }] },
+    { id: "b", name: "  ", rules: [] },
+    { name: "NoId", rules: [] },
+    null
+  ], storage);
+
+  const loaded = loadRulePresets(storage);
+  assert.equal(loaded.length, 2, "entries without a usable name are dropped");
+  assert.deepEqual(loaded[0], { id: "a", name: "Photos", rules: [{ target: "Case" }] });
+  assert.equal(loaded[1].name, "NoId");
+  assert.ok(loaded[1].id, "a missing id is filled in so the UI has a stable key");
+});
+
+test("corrupt preset storage degrades to an empty list", () => {
+  assert.deepEqual(loadRulePresets(fakeStorage({ "batch-file-renamer.presets": "{not json" })), []);
+  assert.deepEqual(loadRulePresets(fakeStorage({ "batch-file-renamer.presets": '"a string"' })), []);
+  assert.deepEqual(loadRulePresets(null), [], "a missing storage backend is not an error");
+});
+
+test("presets are capped so storage cannot grow without bound", () => {
+  const storage = fakeStorage();
+  const many = Array.from({ length: MAX_PRESETS + 10 }, (_, index) => ({ id: `p${index}`, name: `P${index}`, rules: [] }));
+  assert.equal(saveRulePresets(many, storage).length, MAX_PRESETS);
+  assert.equal(loadRulePresets(storage).length, MAX_PRESETS);
+});
+
+test("the last-used session round trips and falls back safely", () => {
+  const storage = fakeStorage();
+  saveSession({ rules: [{ target: "Case" }], valueListText: "a\nb", mode: "copy" }, storage);
+  assert.deepEqual(loadSession(storage), { rules: [{ target: "Case" }], valueListText: "a\nb", mode: "copy" });
+
+  assert.deepEqual(loadSession(fakeStorage()), { rules: [], valueListText: "", mode: "rename" });
+  assert.deepEqual(
+    loadSession(fakeStorage({ "batch-file-renamer.session": "{bad" })),
+    { rules: [], valueListText: "", mode: "rename" }
+  );
+  // An unknown mode must not leave the app in a state the UI cannot represent.
+  saveSession({ rules: [], valueListText: "", mode: "sideways" }, storage);
+  assert.equal(loadSession(storage).mode, "rename");
+});
+
+test("saving is best-effort and never throws when storage rejects writes", () => {
+  const blocked = {
+    getItem: () => null,
+    setItem: () => { throw new Error("QuotaExceededError"); }
+  };
+  assert.doesNotThrow(() => saveRulePresets([{ id: "a", name: "A", rules: [] }], blocked));
+  assert.doesNotThrow(() => saveSession({ rules: [], valueListText: "", mode: "rename" }, blocked));
+});
+
+test("presets and session use their own storage keys", () => {
+  const storage = fakeStorage();
+  saveSettings({ language: "ja" }, storage);
+  saveRulePresets([{ id: "a", name: "A", rules: [] }], storage);
+  saveSession({ rules: [{ target: "Case" }], valueListText: "", mode: "rename" }, storage);
+  // Clearing one must not disturb the others.
+  saveRulePresets([], storage);
+  assert.equal(loadSettings(storage).language, "ja");
+  assert.equal(loadSession(storage).rules.length, 1);
 });

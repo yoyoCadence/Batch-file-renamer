@@ -15,6 +15,8 @@ import {
   isReservedFilename,
   isScopeActive,
   nextAvailableName,
+  normalizeRule,
+  normalizeRules,
   parsePreviewCsv,
   planUndoOperations,
   rowsToCsv,
@@ -464,5 +466,44 @@ assert.throws(() => applyRulesToName("a.txt", cleanup("nope")), (e) => e.code ==
 for (const target of ["Affix", "Extension", "Cleanup"]) {
   assert.ok(TARGETS.includes(target), target);
 }
+
+// T035: rules read back from storage are untrusted and must be coerced, not trusted.
+assert.equal(normalizeRule(null), null);
+assert.equal(normalizeRule({}), null, "a rule with no target is dropped");
+assert.equal(normalizeRule({ target: "NotARealTarget" }), null, "an unknown target is dropped");
+
+const normalized = normalizeRule({
+  target: "Segment",
+  segmentNo: "3",
+  charLength: "not a number",
+  valueMode: "Bogus",
+  caseMode: "sideways",
+  affixPosition: "middle",
+  cleanupMode: "nope",
+  staticValue: 42
+});
+assert.equal(normalized.segmentNo, 3, "numeric strings are parsed");
+assert.equal(normalized.charLength, 0, "unparseable numbers fall back to the default");
+assert.equal(normalized.valueMode, "Static", "an unknown value mode falls back");
+assert.equal(normalized.caseMode, "upper");
+assert.equal(normalized.affixPosition, "prefix");
+assert.equal(normalized.cleanupMode, "trimSpaces");
+assert.equal(normalized.staticValue, "42", "values are coerced to strings");
+assert.equal(normalized.enabled, true);
+
+// Rules saved before T032 have no `enabled` field and must stay enabled.
+assert.equal(normalizeRule({ target: "Case" }).enabled, true);
+assert.equal(normalizeRule({ target: "Case", enabled: false }).enabled, false);
+
+assert.deepEqual(normalizeRules(null), [], "a corrupt list degrades to no rules");
+assert.deepEqual(normalizeRules("nonsense"), []);
+assert.equal(normalizeRules([{ target: "Case" }, null, { target: "Bogus" }, { target: "Replace" }]).length, 2,
+  "bad entries are dropped without taking the good ones with them");
+
+// A normalized rule must still drive the engine correctly.
+assert.equal(
+  applyRulesToName("a-b.txt", normalizeRules([{ target: "Segment", delimiter: "-", segmentNo: "2", valueMode: "Static", staticValue: "z" }])),
+  "a-z.txt"
+);
 
 console.log("rules tests passed");

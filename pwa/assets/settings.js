@@ -769,6 +769,18 @@ export const TRANSLATIONS = {
     "status.Reserved name": "保留名稱（Windows）",
     "status.Trailing dot or space": "結尾為點或空白",
     "status.Imported": "已匯入",
+    "preset.label": "規則預設集",
+    "preset.save": "儲存目前規則",
+    "preset.delete": "刪除",
+    "preset.choose": "選擇要載入的預設集…",
+    "preset.none": "尚未儲存任何預設集",
+    "preset.promptName": "請為這組規則命名：",
+    "preset.confirmDelete": "確定要刪除預設集「{name}」？",
+    "status.presetSaved": "已儲存預設集「{name}」。",
+    "status.presetUpdated": "已更新預設集「{name}」。",
+    "status.presetLoaded": "已載入預設集「{name}」，共 {count} 條規則。",
+    "status.presetDeleted": "已刪除預設集「{name}」。",
+    "status.presetNoRules": "目前沒有規則可以儲存。",
     "option.affix": "加前綴／後綴",
     "option.extension": "改副檔名",
     "option.cleanup": "清理",
@@ -1098,6 +1110,18 @@ export const TRANSLATIONS = {
     "status.Reserved name": "保留名称（Windows）",
     "status.Trailing dot or space": "结尾为点或空格",
     "status.Imported": "已导入",
+    "preset.label": "规则预设集",
+    "preset.save": "保存目前规则",
+    "preset.delete": "删除",
+    "preset.choose": "选择要载入的预设集…",
+    "preset.none": "尚未保存任何预设集",
+    "preset.promptName": "请为这组规则命名：",
+    "preset.confirmDelete": "确定要删除预设集“{name}”？",
+    "status.presetSaved": "已保存预设集“{name}”。",
+    "status.presetUpdated": "已更新预设集“{name}”。",
+    "status.presetLoaded": "已载入预设集“{name}”，共 {count} 条规则。",
+    "status.presetDeleted": "已删除预设集“{name}”。",
+    "status.presetNoRules": "目前没有规则可以保存。",
     "option.affix": "加前缀／后缀",
     "option.extension": "改扩展名",
     "option.cleanup": "清理",
@@ -1427,6 +1451,18 @@ export const TRANSLATIONS = {
     "status.Reserved name": "Reserved name (Windows)",
     "status.Trailing dot or space": "Trailing dot or space",
     "status.Imported": "Imported",
+    "preset.label": "Rule preset",
+    "preset.save": "Save current rules",
+    "preset.delete": "Delete",
+    "preset.choose": "Choose a preset to load…",
+    "preset.none": "No presets saved yet",
+    "preset.promptName": "Name this set of rules:",
+    "preset.confirmDelete": "Delete the preset \"{name}\"?",
+    "status.presetSaved": "Saved the preset \"{name}\".",
+    "status.presetUpdated": "Updated the preset \"{name}\".",
+    "status.presetLoaded": "Loaded the preset \"{name}\" with {count} rule(s).",
+    "status.presetDeleted": "Deleted the preset \"{name}\".",
+    "status.presetNoRules": "There are no rules to save yet.",
     "option.affix": "Add prefix/suffix",
     "option.extension": "Change extension",
     "option.cleanup": "Clean up",
@@ -1756,6 +1792,18 @@ export const TRANSLATIONS = {
     "status.Reserved name": "予約された名前（Windows）",
     "status.Trailing dot or space": "末尾がピリオドまたは空白",
     "status.Imported": "取込済み",
+    "preset.label": "ルールプリセット",
+    "preset.save": "現在のルールを保存",
+    "preset.delete": "削除",
+    "preset.choose": "読み込むプリセットを選択…",
+    "preset.none": "保存済みのプリセットはありません",
+    "preset.promptName": "このルールセットに名前を付けてください：",
+    "preset.confirmDelete": "プリセット「{name}」を削除しますか？",
+    "status.presetSaved": "プリセット「{name}」を保存しました。",
+    "status.presetUpdated": "プリセット「{name}」を更新しました。",
+    "status.presetLoaded": "プリセット「{name}」（{count} 件のルール）を読み込みました。",
+    "status.presetDeleted": "プリセット「{name}」を削除しました。",
+    "status.presetNoRules": "保存できるルールがありません。",
     "option.affix": "接頭辞・接尾辞を追加",
     "option.extension": "拡張子を変更",
     "option.cleanup": "クリーンアップ",
@@ -2209,6 +2257,81 @@ export function loadSettings(storage = globalThis.localStorage) {
   } catch {
     return { ...DEFAULT_SETTINGS };
   }
+}
+
+// Named rule presets and the last-used rule stack. Kept under separate storage keys from the
+// appearance settings so a corrupt value in one cannot take the other down, and so clearing
+// presets never resets the user's theme.
+const PRESETS_KEY = "batch-file-renamer.presets";
+const SESSION_KEY = "batch-file-renamer.session";
+export const MAX_PRESETS = 50;
+
+function readJson(storage, key, fallback) {
+  if (!storage) {
+    return fallback;
+  }
+  try {
+    const raw = storage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeJson(storage, key, value) {
+  if (!storage) {
+    return;
+  }
+  try {
+    storage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Storage can be full or blocked (private mode). Persistence is a convenience here, so
+    // failing to save must never interrupt what the user is doing.
+  }
+}
+
+// A preset is { id, name, rules }. Rules are stored raw and normalized by the caller through
+// the rule engine, which owns what a valid rule looks like.
+export function loadRulePresets(storage = globalThis.localStorage) {
+  const raw = readJson(storage, PRESETS_KEY, []);
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  return raw
+    .filter((preset) => preset && typeof preset === "object" && String(preset.name || "").trim())
+    .map((preset, index) => ({
+      id: String(preset.id || `preset-${index}`),
+      name: String(preset.name).trim().slice(0, 60),
+      rules: Array.isArray(preset.rules) ? preset.rules : []
+    }))
+    .slice(0, MAX_PRESETS);
+}
+
+export function saveRulePresets(presets, storage = globalThis.localStorage) {
+  const trimmed = (Array.isArray(presets) ? presets : []).slice(0, MAX_PRESETS);
+  writeJson(storage, PRESETS_KEY, trimmed);
+  return trimmed;
+}
+
+// The last-used rule stack, so reopening the app does not start from an empty builder.
+// Source files and the scope filter are deliberately not persisted: file handles cannot be
+// restored, and a filter carried over to a different folder would silently narrow it.
+export function loadSession(storage = globalThis.localStorage) {
+  const raw = readJson(storage, SESSION_KEY, {});
+  const session = raw && typeof raw === "object" ? raw : {};
+  return {
+    rules: Array.isArray(session.rules) ? session.rules : [],
+    valueListText: typeof session.valueListText === "string" ? session.valueListText : "",
+    mode: session.mode === "copy" ? "copy" : "rename"
+  };
+}
+
+export function saveSession(session, storage = globalThis.localStorage) {
+  writeJson(storage, SESSION_KEY, {
+    rules: Array.isArray(session?.rules) ? session.rules : [],
+    valueListText: typeof session?.valueListText === "string" ? session.valueListText : "",
+    mode: session?.mode === "copy" ? "copy" : "rename"
+  });
 }
 
 export function saveSettings(settings, storage = globalThis.localStorage) {

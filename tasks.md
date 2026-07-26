@@ -13,12 +13,19 @@ Use this file as the lightweight task board for this project unless the project 
 > ones landed. T035/T036 predate the review and are sequenced last because T041 delivers part
 > of what T036 asks for.
 
-- [ ] T035 - Add named rule presets and remember the last-used rules/settings via localStorage.
 - [ ] T036 - Add preview-row search and batch exclusion of selected rows from execution.
   - Narrowed from the original wording: status-chip filtering moved to T041, so this task covers free-text search and explicit per-row exclusion only.
 
 ## Done
 
+- [x] T035 - Add named rule presets and remember the last-used rules/settings via localStorage.
+  - Added `normalizeRule` / `normalizeRules` to `pwa/assets/rules.js`. Anything read back from storage is untrusted — hand-edited, corrupt, or written by a build with different targets — so every field is coerced and unknown targets are dropped. A bad saved preset degrades to "fewer rules" rather than throwing on every preview.
+  - Added `loadRulePresets` / `saveRulePresets` / `loadSession` / `saveSession` to `pwa/assets/settings.js`, which already owned localStorage access. Separate keys from the appearance settings so a corrupt value in one cannot take the other down, and clearing presets never resets the theme. Writes are best-effort: a full or blocked storage (private mode) must never interrupt what the user is doing.
+  - Presets are capped at `MAX_PRESETS` (50) so storage cannot grow without bound.
+  - The rule stack, value list, and mode are restored on load. Source files and the scope filter are deliberately **not** persisted: file handles cannot be restored, and a filter carried into a different folder would silently narrow it — the exact failure T039 guards against.
+  - Session writes ride the existing live-preview debounce, so typing in the value list cannot produce a storage write per keystroke.
+  - Saving under an existing name overwrites it, since that is what "save" means to most people; silently creating a second entry with the same label would be worse.
+  - 12 new keys localized across all four languages. Added `normalizeRule` unit tests (including that rules saved before T032 have no `enabled` field and must stay enabled), storage round-trip tests with a fake backend (corrupt JSON, wrong types, cap, blocked writes, key isolation), static wiring checks, and `tests/e2e/preset-memory.spec.mjs` (7 cases including a corrupt saved stack). `npm run test` 35 passing, `npm run test:e2e` 55 passing.
 - [x] T042 - Add beginner rule presets that do not require understanding Segment/Character.
   - Added three targets to `pwa/assets/rules.js`: `Affix` (prefix/suffix, with date-token expansion like Static values), `Extension`, and `Cleanup` (trimSpaces / spacesToUnderscore / removeSpecial / collapseSeparators).
   - `applyRulesToName` previously bound the extension once and re-attached it at the end, so changing an extension was impossible to express. It is now a mutable binding the `Extension` target rebinds, which is why extension changes compose correctly with base-name rules in either order (covered by tests both ways round).

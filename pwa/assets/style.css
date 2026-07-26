@@ -771,6 +771,26 @@ textarea:focus-visible {
 }
 
 .mode-panel,
+.preset-bar {
+  padding: 10px 16px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+}
+
+.preset-bar label {
+  width: min(280px, 100%);
+}
+
+.preset-bar button {
+  width: auto;
+  min-height: 34px;
+  padding: 0 12px;
+}
+
 .rule-builder {
   padding: 16px;
 }

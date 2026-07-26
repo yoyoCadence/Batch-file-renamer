@@ -12,6 +12,7 @@ import {
   isScopeActive,
   joinDisplayPath,
   nextAvailableName,
+  normalizeRules,
   parsePreviewCsv,
   parseValueLines,
   planUndoOperations,
@@ -31,8 +32,12 @@ import {
   THEMES,
   applyAppearance,
   applyTranslations,
+  loadRulePresets,
+  loadSession,
   loadSettings,
   normalizeSettings,
+  saveRulePresets,
+  saveSession,
   saveSettings,
   t
 } from "./settings.js";
@@ -43,6 +48,7 @@ const state = {
   template: null,
   outputDirectory: null,
   rules: [],
+  presets: [],
   // Which of the loaded sources this batch touches. Reset whenever sources are (re)loaded so
   // a filter from a previous folder cannot silently narrow the next one.
   scope: { ...EMPTY_SCOPE },
@@ -217,6 +223,9 @@ const els = {
   sampleOutput: $("sampleOutput"),
   addRuleButton: $("addRuleButton"),
   clearRulesButton: $("clearRulesButton"),
+  presetSelect: $("presetSelect"),
+  savePresetButton: $("savePresetButton"),
+  deletePresetButton: $("deletePresetButton"),
   previewButton: $("previewButton"),
   ruleList: $("ruleList"),
   previewSummary: $("previewSummary"),
@@ -259,6 +268,9 @@ init();
 function init() {
   populateSettingsControls();
   applyCurrentSettings();
+  // Restore before the first render so the builder comes back the way it was left.
+  state.presets = loadRulePresets();
+  restoreSession();
 
   document.querySelectorAll("input[name='mode']").forEach((input) => {
     input.addEventListener("change", () => {
@@ -327,6 +339,9 @@ function init() {
     els.cleanupModeSelect
   ].forEach((control) => control.addEventListener("input", updateRuleControls));
 
+  els.presetSelect.addEventListener("change", loadPreset);
+  els.savePresetButton.addEventListener("click", savePreset);
+  els.deletePresetButton.addEventListener("click", deletePreset);
   els.addRuleButton.addEventListener("click", addRule);
   els.clearRulesButton.addEventListener("click", () => {
     state.rules = [];
@@ -405,6 +420,7 @@ function init() {
   updateSupportBadge();
   updateMode();
   updateRuleControls();
+  renderPresets();
   renderAll();
 }
 
@@ -520,6 +536,8 @@ function applyCurrentSettings() {
   populateSettingsLabels();
   updatePet();
   updateSupportBadge();
+  // The preset dropdown carries translated placeholder text, so it re-renders with language.
+  renderPresets();
   renderAll();
   setStatusKey("status.ready");
 }
@@ -908,9 +926,116 @@ function readRuleForm() {
 // Rule edits should show their effect without the user having to ask. This runs the same
 // engine as the button, but skips the filesystem collision checks: those need real IO and
 // would fire on every keystroke. The button remains the way to fold in on-disk conflicts.
+// The same debounce also persists the rule stack, so storage writes cannot pile up per
+// keystroke either.
 function schedulePreview() {
   window.clearTimeout(state.livePreviewTimer);
-  state.livePreviewTimer = window.setTimeout(runLivePreview, LIVE_PREVIEW_DELAY);
+  state.livePreviewTimer = window.setTimeout(() => {
+    persistSession();
+    runLivePreview();
+  }, LIVE_PREVIEW_DELAY);
+}
+
+function persistSession() {
+  saveSession({
+    rules: state.rules,
+    valueListText: els.valueListInput.value,
+    mode: state.mode
+  });
+}
+
+// --- Rule presets ------------------------------------------------------------------------
+
+function restoreSession() {
+  const session = loadSession();
+  state.rules = normalizeRules(session.rules);
+  els.valueListInput.value = session.valueListText;
+  state.mode = session.mode;
+  const modeInput = document.querySelector(`input[name='mode'][value='${state.mode}']`);
+  if (modeInput) {
+    modeInput.checked = true;
+  }
+}
+
+function renderPresets() {
+  const selected = els.presetSelect.value;
+  els.presetSelect.innerHTML = "";
+
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = state.presets.length > 0
+    ? tKey("preset.choose")
+    : tKey("preset.none");
+  els.presetSelect.append(placeholder);
+
+  for (const preset of state.presets) {
+    const option = document.createElement("option");
+    option.value = preset.id;
+    option.textContent = `${preset.name} (${preset.rules.length})`;
+    els.presetSelect.append(option);
+  }
+
+  els.presetSelect.value = state.presets.some((preset) => preset.id === selected) ? selected : "";
+  els.presetSelect.disabled = state.presets.length === 0;
+  els.deletePresetButton.disabled = !els.presetSelect.value;
+}
+
+function savePreset() {
+  if (state.rules.length === 0) {
+    setStatusKey("status.presetNoRules");
+    return;
+  }
+  const name = String(window.prompt(tKey("preset.promptName")) || "").trim();
+  if (!name) {
+    return;
+  }
+
+  // Saving under an existing name overwrites it, which is what "save" means to most people;
+  // silently creating a second entry with the same label would be worse.
+  const existing = state.presets.find((preset) => preset.name.toLowerCase() === name.toLowerCase());
+  if (existing) {
+    existing.rules = state.rules.map((rule) => ({ ...rule }));
+  } else {
+    state.presets.push({
+      id: `preset-${Date.now()}-${state.presets.length}`,
+      name: name.slice(0, 60),
+      rules: state.rules.map((rule) => ({ ...rule }))
+    });
+  }
+
+  state.presets = saveRulePresets(state.presets);
+  renderPresets();
+  els.presetSelect.value = state.presets.find((preset) => preset.name === name)?.id || "";
+  els.deletePresetButton.disabled = !els.presetSelect.value;
+  setStatusKey(existing ? "status.presetUpdated" : "status.presetSaved", { name });
+}
+
+function loadPreset() {
+  const preset = state.presets.find((candidate) => candidate.id === els.presetSelect.value);
+  els.deletePresetButton.disabled = !els.presetSelect.value;
+  if (!preset) {
+    return;
+  }
+  // Normalized on the way in as well as on the way out: a preset saved by an older version
+  // can still carry fields this build no longer understands.
+  state.rules = normalizeRules(preset.rules);
+  resetPreviewRows();
+  renderAll();
+  schedulePreview();
+  setStatusKey("status.presetLoaded", { name: preset.name, count: state.rules.length });
+}
+
+function deletePreset() {
+  const preset = state.presets.find((candidate) => candidate.id === els.presetSelect.value);
+  if (!preset) {
+    return;
+  }
+  if (!window.confirm(tKey("preset.confirmDelete", { name: preset.name }))) {
+    return;
+  }
+  state.presets = saveRulePresets(state.presets.filter((candidate) => candidate.id !== preset.id));
+  renderPresets();
+  setStatusKey("status.presetDeleted", { name: preset.name });
 }
 
 function runLivePreview() {
