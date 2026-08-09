@@ -16,6 +16,14 @@ Use this file as the lightweight task board for this project unless the project 
 
 ## Done
 
+- [x] T044 - Add the project introduction illustrations to `README.md` so a first-time reader understands the purpose and the design.
+  - Added six generated intro images under `docs/images/` (a 1200x630 banner plus five 16:9 concept slides) and wired them into the Traditional Chinese README.
+  - Restructured only the top of the README: banner under the language switcher, `## 立即使用` moved above the visuals so the live link is reachable in one screen, then a new `## 設計重點` section built from slides 01-04 (preview-first, rule pipeline, blocked-row safety, local-first + undo/CSV log), then the existing `## 畫面` real screenshots as proof. Slide 05 heads `## 使用流程`.
+  - The concept slides are labeled as 示意稿 in the README, immediately above the real-screenshot section, so nobody reads a mockup as shipped UI. Every claim on the slides was checked against the app (one-click fixes, reserved names, undo last batch, CSV log, 4 languages, 20+ backgrounds/themes).
+  - No `pwa/` file changed, so `CACHE_NAME` was deliberately not bumped.
+  - **Left open on purpose:** `README.en.md` / `README.ja.md` still have no visuals, because the slide text is Traditional Chinese only. T024 kept the three READMEs structurally in sync and this breaks that. Next step is either localized slide renders or a shared language-neutral subset.
+  - **Known asset defect:** `docs/images/05-workflow-overview.png` has overlapping glyphs in its headline (the source render overflowed its text box). The image is usable but should be regenerated.
+
 - [x] T043 - Refresh the three READMEs, fix the stale service worker cache version, and update the AGENTS.md technical state.
   - **Found and fixed a real shipping bug while doing the docs pass.** `CACHE_NAME` was still `batch-file-renamer-v6` after T035-T042 changed `index.html` and every file under `assets/`. The service worker's fetch handler is cache-first with no revalidation, and a browser only installs a new worker when `service-worker.js` itself changes bytes — so every returning user would have kept serving the old build and seen none of those eight changes. Bumped to v7 and verified in a real browser that the app registers and caches under the new name.
   - Added a comment at the `CACHE_NAME` declaration, a bolded rule in AGENTS.md §0.1, and a note in all three READMEs, because the failure is silent: everything looks fine locally and in a fresh browser profile.

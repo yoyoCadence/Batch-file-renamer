@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- Project introduction visuals in the Traditional Chinese README (T044): a banner plus five
+  concept slides under `docs/images/`, arranged as a new `## 設計重點` section (preview-first,
+  rule pipeline, blocked-row safety, local-first with undo and CSV log) and a workflow diagram
+  above `## 使用流程`. The slides are labeled as mockups and sit above the existing real
+  screenshots. `README.en.md` and `README.ja.md` are unchanged; the slide text is Traditional
+  Chinese only, so they still need localized renders.
 - Windows-safety validation in the rename/copy preview (T027): target names that
   are Windows reserved device names (`CON`, `PRN`, `AUX`, `NUL`, `COM1`–`COM9`,
   `LPT1`–`LPT9`) or that end in a dot or space are now flagged as blocked rows
