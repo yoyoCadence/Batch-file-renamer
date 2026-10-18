@@ -1,3 +1,5 @@
+import { REVIEW_MESSAGES } from "./review-messages.js";
+
 export const LANGUAGES = [
   { id: "zh-TW", label: "繁體中文" },
   { id: "zh-CN", label: "简体中文" },
@@ -2274,6 +2276,9 @@ const CATALOG_TRANSLATIONS = {
 };
 
 for (const [language, entries] of Object.entries(CATALOG_TRANSLATIONS)) {
+  Object.assign(TRANSLATIONS[language], entries);
+}
+for (const [language, entries] of Object.entries(REVIEW_MESSAGES)) {
   Object.assign(TRANSLATIONS[language], entries);
 }
 

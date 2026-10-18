@@ -280,29 +280,39 @@
             <div class="action-row align-right">
               <button id="previewButton" class="primary-button flow-button" type="button" data-i18n="button.preview" data-i18n-title="tooltip.preview" title="預覽會隨規則自動更新。按這裡會再檢查一次輸出資料夾，標出已存在的同名檔案。">重新檢查（含磁碟）</button>
               <button id="resetTargetNamesButton" type="button" data-i18n="button.useSourceNames">套用原檔名</button>
+              <button id="resetOverridesButton" type="button" data-i18n="review.resetOverrides">重設人工修改</button>
               <button id="exportCsvButton" type="button" data-i18n="button.exportCsv">匯出 CSV</button>
               <button id="importCsvButton" type="button" data-i18n="button.importCsv">匯入 CSV</button>
+              <button id="bindCsvButton" type="button" data-i18n="review.bindCsv" hidden>綁定 CSV 至所選檔案</button>
+              <button id="newPreviewButton" type="button" data-i18n="review.newPreview" hidden>離開 CSV，重新產生規則預覽</button>
               <button id="executeButton" class="danger-button" type="button" data-i18n="button.execute">執行 OK 列</button>
               <button id="undoButton" class="ghost-button" type="button" data-i18n="button.undo" hidden>復原上一批</button>
               <button id="exportLogButton" class="ghost-button" type="button" data-i18n="button.exportLog" hidden>匯出記錄</button>
+              <button id="exportRecoveryButton" type="button" data-i18n="review.exportRecovery" hidden>匯出恢復報告</button>
+              <button id="cancelBatchButton" type="button" data-i18n="review.cancel" hidden>完成目前列後停止</button>
             </div>
             <input id="csvInput" type="file" accept=".csv,text/csv" hidden>
           </div>
 
           <div class="folder-tools">
             <label>
-              <span data-i18n="field.targetFolderLabel">目標資料夾標籤</span>
-              <input id="targetFolderInput" type="text" data-i18n-placeholder="placeholder.sourceFolder" data-i18n-title="tooltip.targetFolderLabel" placeholder="來源資料夾" title="更新預覽列顯示的輸出位置。">
+              <span data-i18n="review.boundFolder">已綁定的實際資料夾</span>
+              <input id="targetFolderInput" type="text" readonly data-i18n-placeholder="placeholder.sourceFolder" placeholder="來源資料夾">
             </label>
             <button id="pickPreviewOutputFolderButton" type="button" data-i18n="button.pickPreviewOutputFolder" data-i18n-title="tooltip.pickPreviewOutputFolder" title="選擇真正要存放完成檔案的資料夾。">選擇輸出位置</button>
-            <button id="applyFolderSelectedButton" type="button" data-i18n="button.applySelected" data-i18n-title="tooltip.applySelected" title="只套用到已勾選列。">套用到選取</button>
-            <button id="applyFolderAllButton" type="button" data-i18n="button.applyAll" data-i18n-title="tooltip.applyAll" title="套用到所有預覽列。">套用到全部</button>
+            <button id="applyFolderSelectedButton" type="button" data-i18n="button.applySelected" hidden>套用到選取</button>
+            <button id="applyFolderAllButton" type="button" data-i18n="button.applyAll" hidden>套用到全部</button>
+          </div>
+
+          <div class="write-policy" role="note">
+            <p data-i18n="review.strictPolicy">嚴格模式：瀏覽器無法保證原子不覆寫，因此預設僅預覽與匯出。僅在備份完畢、其他程式不會修改檔案的受控資料夾中啟用下列模式。</p>
+            <label class="toggle-row"><input id="controlledWritesInput" type="checkbox"><span data-i18n="review.controlledWrites">本次工作階段允許非原子的複製／刪除操作（仍有外部競爭風險）</span></label>
           </div>
 
           <div class="safety-strip">
             <div>
               <strong data-i18n="safety.title">執行安全摘要</strong>
-              <p id="executionSummary">尚未產生預覽。</p>
+              <p id="executionSummary" aria-live="polite" aria-atomic="true">尚未產生預覽。</p>
             </div>
             <div id="statusLegend" class="status-legend" role="group" aria-label="Status legend" data-i18n-aria-label="safety.legend">
               <button type="button" class="legend-chip" data-filter="ok" aria-pressed="false"><i class="dot ok"></i><b data-i18n="safety.ok">可執行</b><em id="legendCountOk">0</em></button>

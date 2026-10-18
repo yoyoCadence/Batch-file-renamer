@@ -9,6 +9,7 @@ test("export a per-row execution log after running a rename batch", async ({ pag
   page.on("dialog", (dialog) => dialog.accept()); // accept the execute confirm
   await page.addInitScript(installFakeFileSystem);
   await page.goto("/index.html");
+  await page.check("#controlledWritesInput");
 
   await page.click("#pickSourceFolderButton");
   await expect(page.locator("#sourceList")).toContainText("a.txt");

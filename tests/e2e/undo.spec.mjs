@@ -9,6 +9,7 @@ test("execute a rename batch, then undo it, restoring the original filenames", a
   page.on("dialog", (dialog) => dialog.accept());
   await page.addInitScript(installFakeFileSystem);
   await page.goto("/index.html");
+  await page.check("#controlledWritesInput");
 
   // Load the mocked source folder (a.txt, b.txt).
   await page.click("#pickSourceFolderButton");

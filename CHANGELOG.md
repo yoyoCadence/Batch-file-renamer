@@ -5,6 +5,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Review Plan V1.0.0 — Phase 0/1 (T045–T047)
+
+- Fail closed on unknown filesystem state; capture immutable plans and verify file fingerprints before destructive steps. Default to strict preview; controlled-folder copy/delete requires session-only opt-in with explicit non-atomic limits.
+- Bind CSV to selected sources/templates and one real Copy output folder. Make folder fields read-only, preserve manual overrides/exclusions with stable identities, and block every colliding row.
+- Journal partial failures, retry unresolved undo without overwriting external originals, retain older recovery records and export JSON recovery reports. Add execution/cross-tab locks and cancellation at row boundaries.
+- Protect work from SW reloads, isolate cache cleanup by scope and bump the shell to v8. Full lifecycle/performance work remains in Phase 4.
+- Add strict fake FS failures, real temporary-file engine tests, Chromium safety regressions and PR/Pages browser gates. See `docs/review-phase-0-1.md` for evidence and native-browser limitations.
+
 ### Added
 - Project introduction visuals in the Traditional Chinese README (T044): a banner plus five
   concept slides under `docs/images/`, arranged as a new `## 設計重點` section (preview-first,

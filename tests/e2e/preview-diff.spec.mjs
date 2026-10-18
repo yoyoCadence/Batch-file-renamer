@@ -53,14 +53,14 @@ test("legend chips show counts and filter the table", async ({ page }) => {
   // which is not the case this test is about.
   await addReplaceRule(page, "solo", "only");
 
-  await expect(page.locator("#legendCountOk")).toHaveText("2");
-  await expect(page.locator("#legendCountWarn")).toHaveText("1");
+  await expect(page.locator("#legendCountOk")).toHaveText("1");
+  await expect(page.locator("#legendCountWarn")).toHaveText("2");
   await expect(page.locator("#previewBody tr")).toHaveCount(3);
 
   await page.locator('.legend-chip[data-filter="warn"]').click();
   await expect(page.locator('.legend-chip[data-filter="warn"]')).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator("#previewBody tr")).toHaveCount(1);
-  await expect(page.locator("#previewBody .status-pill")).toHaveText("目標重複");
+  await expect(page.locator("#previewBody tr")).toHaveCount(2);
+  await expect(page.locator("#previewBody .status-pill")).toHaveText(["目標重複", "目標重複"]);
 
   // Clicking the same chip again clears the filter.
   await page.locator('.legend-chip[data-filter="warn"]').click();
@@ -72,10 +72,11 @@ test("a duplicate target explains itself and the one-click fix resolves it", asy
   await addReplaceRule(page, "dupa", "same");
   await addReplaceRule(page, "dupb", "same");
 
-  const blocked = page.locator("#previewBody tr").filter({ hasText: "目標重複" });
+  const blocked = page.locator("#previewBody tr").filter({ hasText: "目標重複" }).last();
   await expect(blocked.locator(".status-reason")).toHaveText("另一列已經要輸出同樣的檔名。");
 
   await blocked.locator(".fix-button").click();
+  await page.click("#previewButton");
 
   // The collision is gone and both rows are executable again.
   await expect(page.locator("#legendCountOk")).toHaveText("2");
@@ -93,6 +94,8 @@ test("a reserved Windows name explains itself and can be repaired", async ({ pag
 
   await row.locator(".fix-button").click();
   await expect(row.locator("input[type='text']").first()).toHaveValue("CON_.txt");
+  await expect(row.locator(".status-pill")).toHaveText("待磁碟檢查");
+  await page.click("#previewButton");
   await expect(page.locator("#legendCountOk")).toHaveText("1");
 });
 
@@ -110,6 +113,8 @@ test("an invalid filename can be repaired in one click", async ({ page }) => {
 
   await row.locator(".fix-button").click();
   await expect(row.locator("input[type='text']").first()).toHaveValue("a_b.txt");
+  await expect(row.locator(".status-pill")).toHaveText("待磁碟檢查");
+  await page.click("#previewButton");
   await expect(page.locator("#legendCountOk")).toHaveText("1");
 });
 
@@ -136,5 +141,7 @@ test("a target that already exists on disk is caught by the recheck and repairab
 
   await row.locator(".fix-button").click();
   await expect(row.locator("input[type='text']").first()).toHaveValue("taken-1.txt");
+  await expect(row.locator(".status-pill")).toHaveText("待磁碟檢查");
+  await page.click("#previewButton");
   await expect(row.locator(".status-pill")).toHaveText("OK");
 });
