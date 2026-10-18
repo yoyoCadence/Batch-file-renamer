@@ -2,7 +2,6 @@ import {
   EMPTY_SCOPE,
   applyRulesToName,
   buildPreviewRows,
-  codedError,
   diffSpan,
   errorDetail,
   escapeReservedName,
@@ -15,7 +14,6 @@ import {
   normalizeRules,
   parsePreviewCsv,
   parseValueLines,
-  planUndoOperations,
   rowsToCsv,
   sanitizeFilename,
   stripTrailingDotOrSpace,
@@ -41,6 +39,9 @@ import {
   saveSettings,
   t
 } from "./settings.js";
+import { fileExists, withWriteLock } from "./filesystem.js";
+import { createBatch, createExecutionPlan, reconcileRecoveryDependencies, recoverableEntries, recoveryReport, runBatch, undoBatch } from "./execution.js";
+import { attachBindings, bindImportedRows, mergeOverrides, rowBucket, rowCounts } from "./preview-state.js";
 
 const state = {
   mode: "rename",
@@ -53,6 +54,12 @@ const state = {
   // a filter from a previous folder cannot silently narrow the next one.
   scope: { ...EMPTY_SCOPE },
   rows: [],
+  overrides: new Map(),
+  rowsRevision: 0,
+  importedPlan: false,
+  busy: false,
+  batches: [],
+  activeBatch: null,
   selectedRows: new Set(),
   showFullPath: false,
   // Which status bucket the table is narrowed to, or null for everything. Filtering and
@@ -70,6 +77,7 @@ const state = {
   installPrompt: null,
   updateWorker: null,
   updateDismissed: false,
+  reloadRequested: false,
   settings: loadSettings(),
   pet: {
     x: 32,
@@ -236,6 +244,12 @@ const els = {
   previewSummary: $("previewSummary"),
   executionSummary: $("executionSummary"),
   resetTargetNamesButton: $("resetTargetNamesButton"),
+  resetOverridesButton: $("resetOverridesButton"),
+  newPreviewButton: $("newPreviewButton"),
+  bindCsvButton: $("bindCsvButton"),
+  controlledWritesInput: $("controlledWritesInput"),
+  cancelBatchButton: $("cancelBatchButton"),
+  exportRecoveryButton: $("exportRecoveryButton"),
   exportCsvButton: $("exportCsvButton"),
   importCsvButton: $("importCsvButton"),
   executeButton: $("executeButton"),
@@ -359,6 +373,32 @@ function init() {
   });
   els.previewButton.addEventListener("click", previewRules);
   els.resetTargetNamesButton.addEventListener("click", resetTargetNames);
+  els.resetOverridesButton.addEventListener("click", () => {
+    state.overrides.clear();
+    state.rowsRevision++;
+    if (state.importedPlan) {
+      state.rows = validateForApp(state.rows.map((row) => ({
+        ...row, targetName: row.generatedTargetName, manual: false,
+        targetExists: false, filesystemError: null, needsCheck: true, status: "OK", statusDetail: null
+      })));
+      renderPreview();
+    }
+    else runLivePreview();
+  });
+  els.bindCsvButton.addEventListener("click", bindCsvPlan);
+  els.newPreviewButton.addEventListener("click", () => {
+    state.importedPlan = false;
+    state.overrides.clear(); state.excludedRows.clear();
+    resetPreviewRows(); runLivePreview();
+  });
+  els.controlledWritesInput.addEventListener("change", renderCapability);
+  els.cancelBatchButton.addEventListener("click", () => {
+    if (state.activeBatch) state.activeBatch.cancelRequested = true;
+    setStatusKey("review.cancelRequested");
+  });
+  els.exportRecoveryButton.addEventListener("click", () => {
+    downloadBlob(new Blob([JSON.stringify(recoveryReport(state.batches), null, 2)], { type: "application/json" }), "rename-recovery.json");
+  });
   els.exportCsvButton.addEventListener("click", exportCsv);
   els.importCsvButton.addEventListener("click", () => els.csvInput.click());
   els.csvInput.addEventListener("change", importCsv);
@@ -408,6 +448,12 @@ function init() {
     state.installPrompt = event;
     els.installButton.hidden = false;
   });
+  window.addEventListener("beforeunload", (event) => {
+    if (state.busy || state.batches.some((batch) => recoverableEntries(batch).length)) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+  });
   window.addEventListener("resize", () => {
     clampPetPosition();
     renderPetPosition();
@@ -439,13 +485,10 @@ function init() {
 }
 
 function registerServiceWorker() {
-  let reloadingForUpdate = false;
   navigator.serviceWorker.addEventListener("controllerchange", () => {
-    if (reloadingForUpdate) {
-      return;
-    }
-    reloadingForUpdate = true;
-    window.location.reload();
+    // First claim and updates applied in another tab must never erase a plan
+    // or recovery handles. Reload only the idle tab that requested the update.
+    if (state.reloadRequested && !hasWorkingFiles()) window.location.reload();
   });
 
   navigator.serviceWorker.register("./service-worker.js").then((registration) => {
@@ -486,6 +529,8 @@ function showUpdateAvailable(worker) {
 }
 
 function applyPendingUpdate() {
+  if (hasWorkingFiles()) { setStatusKey("review.updateDeferred"); return; }
+  state.reloadRequested = true;
   if (!state.updateWorker) {
     window.location.reload();
     return;
@@ -493,7 +538,11 @@ function applyPendingUpdate() {
   els.updateNowButton.disabled = true;
   setStatusKey("status.updateApplying");
   state.updateWorker.postMessage({ type: "SKIP_WAITING" });
-  window.setTimeout(() => window.location.reload(), 4500);
+}
+
+function hasWorkingFiles() {
+  return state.busy || state.sources.length > 0 || Boolean(state.template) || state.rows.length > 0
+    || state.batches.some((batch) => recoverableEntries(batch).length > 0);
 }
 
 function populateSettingsControls() {
@@ -649,7 +698,9 @@ function updateMode() {
 }
 
 function resetPreviewRows() {
-  state.rows = [];
+  state.rowsRevision++;
+  if (state.importedPlan) state.rows = state.rows.map((row) => ({ ...row, bound: false, sourceRef: null, targetDirectory: null, status: "Binding required", terminal: false }));
+  else state.rows = [];
   state.selectedRows.clear();
 }
 
@@ -659,6 +710,7 @@ function isIgnorableSystemFile(name) {
 }
 
 async function pickSourceFolder() {
+  if (state.busy) return;
   if (!hasFileSystemAccess) {
     setStatusKey("status.folderNeedsChromium");
     els.fileInput.click();
@@ -667,6 +719,7 @@ async function pickSourceFolder() {
 
   try {
     const directoryHandle = await window.showDirectoryPicker({ mode: "readwrite" });
+    if (state.busy) return;
     state.sourceDirectoryHandle = directoryHandle;
     const sources = [];
     let skipped = 0;
@@ -679,6 +732,7 @@ async function pickSourceFolder() {
         continue;
       }
       sources.push({
+        id: crypto.randomUUID(),
         name,
         path: `${directoryHandle.name}/${name}`,
         folder: directoryHandle.name,
@@ -694,8 +748,8 @@ async function pickSourceFolder() {
     state.sources = sources.sort((a, b) => a.name.localeCompare(b.name));
     resetScope();
     state.excludedRows.clear();
-    state.rows = [];
-    state.selectedRows.clear();
+    if (!state.importedPlan) state.overrides.clear();
+    resetPreviewRows();
     renderAll();
     schedulePreview();
     setStatusKey(skipped > 0 ? "status.loadedFromFolderWithSkipped" : "status.loadedFromFolder", {
@@ -716,6 +770,7 @@ function addPreviewFiles() {
 }
 
 function addSourceFiles(fileList) {
+  if (state.busy) return;
   const files = Array.from(fileList || []);
   if (files.length === 0) {
     return;
@@ -724,6 +779,7 @@ function addSourceFiles(fileList) {
   const skipped = files.length - visibleFiles.length;
   state.sourceDirectoryHandle = null;
   state.sources = visibleFiles.map((file, index) => ({
+    id: crypto.randomUUID(),
     name: file.name,
     path: file.webkitRelativePath || file.name,
     folder: tKey("folder.browserFiles"),
@@ -736,8 +792,8 @@ function addSourceFiles(fileList) {
   }));
   resetScope();
   state.excludedRows.clear();
-  state.rows = [];
-  state.selectedRows.clear();
+  if (!state.importedPlan) state.overrides.clear();
+  resetPreviewRows();
   renderAll();
   schedulePreview();
   setStatusKey(skipped > 0 ? "status.loadedPreviewFilesWithSkipped" : "status.loadedPreviewFiles", {
@@ -776,14 +832,15 @@ function clearSources() {
   state.sourceDirectoryHandle = null;
   resetScope();
   state.excludedRows.clear();
-  state.rows = [];
-  state.selectedRows.clear();
+  if (!state.importedPlan) state.overrides.clear();
+  resetPreviewRows();
   renderAll();
   schedulePreview();
   setStatusKey("status.sourceFilesCleared");
 }
 
 async function pickTemplate() {
+  if (state.busy) return;
   if (!hasFileSystemAccess) {
     els.templateInput.click();
     return;
@@ -792,10 +849,11 @@ async function pickTemplate() {
   try {
     const [handle] = await window.showOpenFilePicker({ multiple: false });
     const file = await handle.getFile();
+    if (state.busy) return;
     state.template = {
       name: file.name,
       path: file.name,
-      key: `template:${file.name}`,
+      key: `template:${crypto.randomUUID()}`,
       ref: {
         kind: "fileHandle",
         fileHandle: handle
@@ -820,7 +878,7 @@ function addTemplateFromInput() {
   state.template = {
     name: file.name,
     path: file.name,
-    key: `template:${file.name}`,
+    key: `template:${crypto.randomUUID()}`,
     ref: {
       kind: "pickedFile",
       file
@@ -834,6 +892,7 @@ function addTemplateFromInput() {
 }
 
 async function pickOutputFolder() {
+  if (state.busy) return;
   if (!hasFileSystemAccess) {
     setStatusKey("status.outputNeedsChromium");
     return;
@@ -841,6 +900,7 @@ async function pickOutputFolder() {
 
   try {
     const directoryHandle = await window.showDirectoryPicker({ mode: "readwrite" });
+    if (state.busy) return;
     state.outputDirectory = {
       name: directoryHandle.name,
       handle: directoryHandle
@@ -1057,30 +1117,15 @@ function deletePreset() {
 }
 
 function runLivePreview() {
+  if (state.busy || state.importedPlan) return;
   const activeRules = state.rules.filter((rule) => rule.enabled !== false);
-  // Nothing to preview yet is a normal starting state, not a problem to report.
-  if (activeRules.length === 0) {
-    resetPreviewRows();
-    renderPreview();
-    return;
+  if (activeRules.length === 0 || state.mode === "rename" && state.sources.length > 0 && scopedSources().length === 0) {
+    resetPreviewRows(); renderPreview(); return;
   }
-  // The scope strip already explains an empty scope; don't repeat it in the status bar.
-  if (state.mode === "rename" && state.sources.length > 0 && scopedSources().length === 0) {
-    resetPreviewRows();
-    renderPreview();
-    return;
-  }
-
   const result = buildPreviewRows(previewOptions(activeRules));
-  if (!result.ok) {
-    resetPreviewRows();
-    renderPreview();
-    setStatus(guardMessage(result));
-    return;
-  }
-
-  state.rows = validateForApp(result.rows);
-  state.selectedRows.clear();
+  state.rowsRevision++;
+  if (!result.ok) { state.rows = []; renderPreview(); setStatus(guardMessage(result)); return; }
+  state.rows = validateForApp(mergeOverrides(result.rows, state.overrides));
   renderPreview();
 }
 
@@ -1107,81 +1152,49 @@ function guardMessage(result) {
 }
 
 async function previewRules() {
-  // Files exist but the filter excludes all of them: say that instead of letting the engine
-  // report the misleading "add source files first".
-  if (state.mode === "rename" && state.sources.length > 0 && scopedSources().length === 0) {
-    setStatusKey("status.scopeEmpty");
-    return;
+  if (state.busy) return;
+  window.clearTimeout(state.livePreviewTimer);
+  persistSession();
+  if (!state.importedPlan && state.mode === "rename" && state.sources.length && !scopedSources().length) {
+    resetPreviewRows(); renderPreview(); setStatusKey("status.scopeEmpty"); return;
   }
-
-  const result = buildPreviewRows(previewOptions());
-
-  if (!result.ok) {
-    state.rows = result.rows;
-    renderPreview();
-    setStatus(guardMessage(result));
-    return;
-  }
-
-  // Unlike the live pass, this folds in on-disk collision checks, which is why the button
-  // still exists once preview updates automatically.
-  state.rows = await revalidateWithFilesystem(result.rows);
-  state.selectedRows.clear();
+  if (!state.rows.length && !state.importedPlan) runLivePreview();
+  if (!state.rows.length) return;
+  const revision = state.rowsRevision;
+  const checked = await revalidateWithFilesystem(state.rows);
+  if (revision !== state.rowsRevision || state.busy) return;
+  state.rows = checked;
   renderPreview();
   setStatusKey("status.previewGenerated", { count: state.rows.length });
 }
 
 async function revalidateWithFilesystem(rows) {
-  const checkedRows = await Promise.all(rows.map(async (row) => {
-    const next = { ...row, targetExists: false };
-    if (String(row.status || "").startsWith("Error:")) {
-      return next;
+  const checkedRows = [];
+  // Sequential IO bounds pressure on large directories.
+  for (const row of attachBindings(rows, state)) {
+    const next = { ...row, targetExists: false, filesystemError: null, needsCheck: false };
+    const checkable = ["OK", "Target exists", "Filesystem unknown", "Needs check", "Duplicate target"].includes(row.status);
+    if (!row.terminal && checkable && row.targetDirectory && (!row.imported || row.bound)) {
+      try {
+        if (row.action !== "Rename" || row.targetName !== row.sourceName) next.targetExists = await fileExists(row.targetDirectory, row.targetName);
+      } catch (error) { next.filesystemError = { name: error.name, message: error.message }; }
     }
-    try {
-      if (row.action === "Copy" && state.outputDirectory?.handle) {
-        next.targetExists = await fileExists(state.outputDirectory.handle, row.targetName);
-      } else if (row.action === "Rename" && row.sourceRef?.directoryHandle && row.targetName !== row.sourceName) {
-        next.targetExists = await fileExists(row.sourceRef.directoryHandle, row.targetName);
-      }
-    } catch {
-      next.targetExists = false;
-    }
-    return next;
-  }));
+    checkedRows.push(next);
+  }
   return validateForApp(checkedRows);
 }
 
 function resetTargetNames() {
-  state.rows = validateForApp(state.rows.map((row) => ({
-    ...row,
-    targetName: row.sourceName,
-    status: "OK"
-  })));
-  renderPreview();
-  setStatusKey("status.targetNamesReset");
+  if (state.busy) return;
+  for (const row of state.rows) state.overrides.set(row.id, { targetName: row.sourceName });
+  state.rowsRevision++;
+  state.rows = validateForApp(mergeOverrides(state.rows, state.overrides));
+  renderPreview(); setStatusKey("status.targetNamesReset");
 }
 
-function applyFolderLabel(scope) {
-  const label = els.targetFolderInput.value.trim();
-  if (!label) {
-    setStatusKey("status.targetFolderEmpty");
-    return;
-  }
-
-  const ids = state.selectedRows;
-  state.rows = validateForApp(state.rows.map((row) => {
-    if (scope === "selected" && !ids.has(row.id)) {
-      return row;
-    }
-    return {
-      ...row,
-      targetFolder: label,
-      targetFolderKey: "manual",
-      status: "OK"
-    };
-  }));
-  renderPreview();
-  setStatusKey(scope === "selected" ? "status.folderAppliedSelected" : "status.folderAppliedAll");
+function applyFolderLabel() {
+  // Display labels never grant access to another directory.
+  setStatusKey("review.folderBindingOnly");
 }
 
 async function exportCsv() {
@@ -1215,118 +1228,121 @@ async function exportCsv() {
 }
 
 async function importCsv() {
+  if (state.busy) return;
   const [file] = Array.from(els.csvInput.files || []);
-  if (!file) {
-    return;
-  }
+  if (!file) return;
   try {
     const text = await file.text();
-    state.rows = validateForApp(parsePreviewCsv(text, { importedFolderLabel: tKey("folder.imported") }));
-    state.selectedRows.clear();
-    renderPreview();
-    setStatusKey("status.importedCsv", { count: state.rows.length });
-  } catch (error) {
-    setStatusKey("status.importFailed", { message: error.message });
-  } finally {
-    els.csvInput.value = "";
-  }
+    if (state.busy) return;
+    const rows = parsePreviewCsv(text, { importedFolderLabel: tKey("folder.imported") });
+    window.clearTimeout(state.livePreviewTimer);
+    state.importedPlan = true; state.rowsRevision++;
+    state.overrides.clear(); state.excludedRows.clear();
+    state.rows = validateForApp(rows); state.selectedRows.clear();
+    renderPreview(); setStatusKey("review.csvUnbound", { count: rows.length });
+  } catch (error) { setStatusKey("status.importFailed", { message: error.message }); }
+  finally { els.csvInput.value = ""; }
+}
+
+function bindCsvPlan() {
+  if (state.busy || !state.importedPlan) return;
+  const rows = bindImportedRows(state.rows, state);
+  state.rowsRevision++;
+  state.rows = validateForApp(rows);
+  renderPreview();
+  setStatusKey("review.csvBound", { bound: rows.filter((row) => row.bound).length, total: rows.length });
 }
 
 async function executeRows() {
-  state.rows = await revalidateWithFilesystem(state.rows);
-  renderPreview();
-  const okRows = state.rows.filter((row) => row.status === "OK");
-  if (okRows.length === 0) {
-    setStatusKey("status.noOkRows");
-    return;
-  }
-  const confirmed = window.confirm(tKey("status.confirmExecute", { count: okRows.length }));
-  if (!confirmed) {
-    return;
-  }
-
-  let done = 0;
-  let failed = 0;
-  const renames = [];
-  const executedAt = new Date().toISOString();
-  const report = [];
-  for (const row of okRows) {
-    let result = "Done";
-    let message = "";
-    try {
-      if (row.action === "Copy") {
-        await executeCopyRow(row);
-      } else {
-        await executeRenameRow(row);
-        renames.push({
-          from: row.sourceName,
-          to: row.targetName,
-          directoryHandle: row.sourceRef.directoryHandle
-        });
-      }
-      done += 1;
-      updateRowStatus(row.id, "Done");
-    } catch (error) {
-      failed += 1;
-      result = "Error";
-      message = error.message;
-      updateRowStatus(row.id, `Error: ${error.message}`, errorDetail(error));
-    }
-    report.push({
-      action: row.action,
-      sourceName: row.sourceName,
-      sourcePath: row.sourcePath,
-      targetName: row.targetName,
-      targetFolder: row.targetFolder,
-      targetPath: row.targetPath,
-      result,
-      message,
-      timestamp: executedAt
+  if (state.busy) return;
+  if (!els.controlledWritesInput.checked) { setStatusKey("review.strictPolicy"); return; }
+  setBatchBusy(true);
+  try {
+    await withWriteLock(async () => {
+      state.rows = await revalidateWithFilesystem(state.rows);
+      renderPreview();
+      const okRows = state.rows.filter((row) => row.status === "OK");
+      if (!okRows.length) { setStatusKey("status.noOkRows"); return; }
+      const plan = await createExecutionPlan(okRows, { controlled: els.controlledWritesInput.checked });
+      if (!window.confirm(`${tKey("status.confirmExecute", { count: plan.items.length })}\n\n${tKey("review.confirmControlled")}`)) return;
+      const batch = createBatch(plan);
+      state.batches.push(batch); state.activeBatch = batch; state.lastBatch = batch;
+      await runBatch(plan, batch, (entry) => {
+        const status = entry.state === "completed" ? "Done" : entry.state === "partial" ? "Partial" : entry.state === "cancelled" ? "Cancelled" : `Error: ${entry.error?.message || entry.state}`;
+        updateRowStatus(entry.item.id, status, entry.error?.code ? { code: entry.error.code, params: {} } : null);
+      });
+      reconcileSources(batch);
+      state.lastExecutionReport = batch.entries.map((entry) => ({ ...entry.item,
+        result: entry.state === "completed" ? "Done" : entry.state, message: entry.error?.message || "", timestamp: batch.createdAt
+      }));
+      const done = batch.entries.filter((entry) => entry.state === "completed").length;
+      setStatusKey("status.executionDone", { done, failed: batch.entries.length - done });
     });
-    renderPreview();
+  } catch (error) { setStatusKey("review.operationStopped", { message: error.message }); }
+  finally {
+    state.activeBatch = null; setBatchBusy(false);
+    updateUndoAvailability(); updateExecutionLogAvailability(); renderAll();
   }
-  // Only renames are reversible; a copy-only batch clears any prior undo entry.
-  state.lastBatch = renames.length > 0 ? { renames } : null;
-  state.lastExecutionReport = report;
-  updateUndoAvailability();
-  updateExecutionLogAvailability();
-  setStatusKey("status.executionDone", { done, failed });
 }
 
 async function undoLastBatch() {
-  if (!state.lastBatch || state.lastBatch.renames.length === 0) {
-    setStatusKey("status.undoNothing");
-    return;
-  }
-  const operations = planUndoOperations(state.lastBatch.renames);
-  const confirmed = window.confirm(tKey("status.undoConfirm", { count: operations.length }));
-  if (!confirmed) {
-    return;
-  }
+  if (state.busy) return;
+  const batch = [...state.batches].reverse().find((candidate) => recoverableEntries(candidate).length);
+  if (!batch) { setStatusKey("status.undoNothing"); return; }
+  if (!els.controlledWritesInput.checked) { setStatusKey("review.strictPolicy"); return; }
+  setBatchBusy(true);
+  try {
+    await withWriteLock(async () => {
+      const before = recoverableEntries(batch).length;
+      if (!window.confirm(`${tKey("status.undoConfirm", { count: before })}\n\n${tKey("review.confirmControlled")}`)) return;
+      await undoBatch(batch, { controlled: true });
+      reconcileRecoveryDependencies(state.batches, batch);
+      reconcileSources(batch);
+      for (const entry of batch.entries) {
+        if (entry.undo === "completed") updateRowStatus(entry.item.id, "Undone");
+        else if (entry.undoError) updateRowStatus(entry.item.id, "Partial");
+      }
+      state.lastExecutionReport = batch.entries.map((entry) => ({ ...entry.item, action: `Undo ${entry.item.action}`,
+        result: entry.undo, message: entry.undoError?.message || "", timestamp: new Date().toISOString()
+      }));
+      const failed = recoverableEntries(batch).length;
+      setStatusKey("status.undoDone", { done: before - failed, failed });
+    });
+  } catch (error) { setStatusKey("review.operationStopped", { message: error.message }); }
+  finally { setBatchBusy(false); updateUndoAvailability(); updateExecutionLogAvailability(); renderAll(); }
+}
 
-  let done = 0;
-  let failed = 0;
-  for (const operation of operations) {
-    try {
-      await ensurePermission(operation.directoryHandle, "readwrite");
-      const currentHandle = await operation.directoryHandle.getFileHandle(operation.from, { create: false });
-      const file = await currentHandle.getFile();
-      await writeFileToDirectory(operation.directoryHandle, operation.to, file);
-      await operation.directoryHandle.removeEntry(operation.from);
-      done += 1;
-    } catch {
-      failed += 1;
+function setBatchBusy(busy) {
+  state.busy = busy;
+  window.clearTimeout(state.livePreviewTimer);
+  for (const control of document.querySelectorAll("button,input,select,textarea")) {
+    if (busy) {
+      control.dataset.batchDisabled = String(control.disabled);
+      control.disabled = control !== els.cancelBatchButton && control !== els.exportRecoveryButton;
+    } else if ("batchDisabled" in control.dataset) {
+      control.disabled = control.dataset.batchDisabled === "true";
+      delete control.dataset.batchDisabled;
     }
   }
+  els.cancelBatchButton.hidden = !busy;
+}
 
-  state.lastBatch = null;
-  updateUndoAvailability();
-  setStatusKey("status.undoDone", { done, failed });
+function reconcileSources(batch) {
+  for (const entry of batch.entries) {
+    if (entry.item.action !== "Rename" || !entry.sourceDeleted) continue;
+    const undone = entry.undo === "completed";
+    const name = undone ? entry.item.sourceName : entry.item.targetName;
+    const handle = undone ? entry.undoCreatedHandle : entry.targetHandle;
+    state.sources = state.sources.map((source) => source.ref?.fileHandle === entry.item.sourceRef.fileHandle || source.ref?.fileHandle === entry.targetHandle
+      ? { ...source, name, path: `${source.folder}/${name}`, ref: { ...source.ref, fileHandle: handle } } : source);
+    state.overrides.delete(entry.item.id);
+  }
 }
 
 function updateUndoAvailability() {
-  const canUndo = Boolean(state.lastBatch && state.lastBatch.renames.length > 0);
-  els.undoButton.hidden = !canUndo;
+  els.undoButton.hidden = !state.batches.some((batch) => recoverableEntries(batch).length);
+  els.undoButton.disabled = state.busy;
+  els.exportRecoveryButton.hidden = state.batches.length === 0;
 }
 
 function exportExecutionLog() {
@@ -1345,81 +1361,11 @@ function updateExecutionLogAvailability() {
   els.exportLogButton.hidden = state.lastExecutionReport.length === 0;
 }
 
-async function executeCopyRow(row) {
-  if (!state.outputDirectory?.handle) {
-    throw codedError("outputFolderMissing", "Pick an output folder before direct copy execution.");
-  }
-  if (!state.template?.ref) {
-    throw codedError("templateMissing", "Template file is missing.");
-  }
-  await ensurePermission(state.outputDirectory.handle, "readwrite");
-  const file = await getSourceFile(state.template.ref);
-  await writeFileToDirectory(state.outputDirectory.handle, row.targetName, file);
-}
-
-async function executeRenameRow(row) {
-  if (row.targetFolderKey !== "source") {
-    throw codedError("renameSourceOnly", "Direct rename only supports the selected source folder.");
-  }
-  if (!row.sourceRef?.directoryHandle || !row.sourceRef?.fileHandle) {
-    throw codedError("renameNeedsFolder", "Pick a source folder to enable direct rename execution.");
-  }
-  const directoryHandle = row.sourceRef.directoryHandle;
-  await ensurePermission(directoryHandle, "readwrite");
-  const file = await row.sourceRef.fileHandle.getFile();
-  await writeFileToDirectory(directoryHandle, row.targetName, file);
-  await directoryHandle.removeEntry(row.sourceName);
-}
-
-async function writeFileToDirectory(directoryHandle, fileName, file) {
-  const targetHandle = await directoryHandle.getFileHandle(fileName, { create: true });
-  const writable = await targetHandle.createWritable();
-  await writable.write(file);
-  await writable.close();
-}
-
-async function getSourceFile(ref) {
-  if (ref.file) {
-    return ref.file;
-  }
-  if (ref.fileHandle) {
-    return ref.fileHandle.getFile();
-  }
-  throw codedError("sourceFileMissing", "Source file handle is missing.");
-}
-
-async function fileExists(directoryHandle, fileName) {
-  try {
-    await directoryHandle.getFileHandle(fileName, { create: false });
-    return true;
-  } catch (error) {
-    if (error.name === "NotFoundError") {
-      return false;
-    }
-    throw error;
-  }
-}
-
-async function ensurePermission(handle, mode) {
-  if (!handle.queryPermission || !handle.requestPermission) {
-    return;
-  }
-  const options = { mode };
-  if ((await handle.queryPermission(options)) === "granted") {
-    return;
-  }
-  if ((await handle.requestPermission(options)) !== "granted") {
-    throw codedError("permissionDenied", "File permission was not granted.");
-  }
-}
-
 function updateRowStatus(id, status, statusDetail = null) {
-  state.rows = state.rows.map((row) => row.id === id ? { ...row, status, statusDetail } : row);
+  state.rowsRevision++;
+  state.rows = state.rows.map((row) => row.id === id ? { ...row, status, statusDetail, terminal: true } : row);
 }
 
-// The subset of loaded sources this batch acts on. Everything downstream -- preview rows,
-// the live sample, and therefore execution -- reads from here, so an out-of-scope file can
-// never be touched.
 function scopedSources() {
   return filterSources(state.sources, state.scope);
 }
@@ -1566,14 +1512,15 @@ function renderCapability() {
   const capability = sourceCapability();
   const params = capability.params || {};
   els.sourceCapability.dataset.state = capability.state;
-  els.capabilityTitle.textContent = tKey(capability.titleKey, params);
-  els.capabilityDetail.textContent = tKey(capability.detailKey, params);
+  const strict = capability.state === "ready" && !els.controlledWritesInput.checked;
+  els.capabilityTitle.textContent = tKey(strict ? "review.boundReady" : capability.titleKey, params);
+  els.capabilityDetail.textContent = tKey(strict ? "review.strictPolicy" : capability.detailKey, params);
 
   // Executing is only meaningful once a real directory handle exists, so the button stays
   // disabled (with the reason on hover) instead of failing after the user commits to it.
-  const canExecute = capability.state === "ready";
+  const canExecute = capability.state === "ready" && els.controlledWritesInput.checked && !state.busy;
   els.executeButton.disabled = !canExecute;
-  els.executeButton.title = canExecute ? "" : tKey(capability.detailKey, params);
+  els.executeButton.title = canExecute ? "" : tKey(capability.state === "ready" ? "review.strictPolicy" : capability.detailKey, params);
 }
 
 function renderFileSummary() {
@@ -1799,6 +1746,9 @@ function moveRule(from, to) {
 }
 
 function renderPreview() {
+  els.bindCsvButton.hidden = !state.importedPlan;
+  els.newPreviewButton.hidden = !state.importedPlan;
+  els.targetFolderInput.value = state.mode === "copy" ? state.outputDirectory?.name || "" : state.sourceDirectoryHandle?.name || "";
   els.previewBody.innerHTML = "";
   const counts = summarizeRows();
   renderExecutionSummary(counts);
@@ -1839,6 +1789,8 @@ function renderPreview() {
     const selected = document.createElement("input");
     selected.type = "checkbox";
     selected.checked = state.selectedRows.has(row.id);
+    selected.disabled = state.busy || row.terminal;
+    selected.setAttribute("aria-label", tKey("review.selectRow", { name: row.sourceName }));
     selected.addEventListener("change", () => {
       if (selected.checked) {
         state.selectedRows.add(row.id);
@@ -1851,6 +1803,8 @@ function renderPreview() {
     const targetName = document.createElement("input");
     targetName.type = "text";
     targetName.value = row.targetName;
+    targetName.disabled = state.busy || row.terminal;
+    targetName.setAttribute("aria-label", tKey("review.targetRow", { name: row.sourceName }));
     targetName.addEventListener("change", () => {
       updateRow(row.id, {
         targetName: targetName.value,
@@ -1861,13 +1815,8 @@ function renderPreview() {
     const targetFolder = document.createElement("input");
     targetFolder.type = "text";
     targetFolder.value = row.targetFolder;
-    targetFolder.addEventListener("change", () => {
-      updateRow(row.id, {
-        targetFolder: targetFolder.value,
-        targetFolderKey: row.targetFolderKey === "source" && targetFolder.value === row.targetFolder ? "source" : "manual",
-        status: "OK"
-      });
-    });
+    targetFolder.readOnly = true;
+    targetFolder.setAttribute("aria-label", tKey("review.folderRow", { name: row.sourceName }));
 
     tr.append(
       cellWith(selected),
@@ -1948,6 +1897,7 @@ function isViewFiltered() {
 }
 
 function toggleExclusion(exclude) {
+  if (state.busy) return;
   if (state.selectedRows.size === 0) {
     setStatusKey("status.noSelection");
     return;
@@ -1990,21 +1940,27 @@ function toggleStatusFilter(filter) {
 
 function renderExecutionSummary(counts = summarizeRows()) {
   els.executionSummary.textContent = state.rows.length
-    ? tKey("safety.summary", { ok: counts.ok, blocked: counts.blocked, error: counts.error })
+    ? tKey("review.summary", counts)
     : tKey("safety.none");
 }
 
 function updateRow(id, patch) {
-  state.rows = validateForApp(state.rows.map((row) => row.id === id ? { ...row, ...patch } : row));
+  if (state.busy) return;
+  if (patch.targetName !== undefined) state.overrides.set(id, { targetName: patch.targetName });
+  state.rowsRevision++;
+  state.rows = validateForApp(state.rows.map((row) => row.id === id ? {
+    ...row, ...patch, manual: true, targetExists: false, filesystemError: null, statusDetail: null, terminal: false, needsCheck: true
+  } : row));
   renderPreview();
 }
 
 function validateForApp(rows) {
-  return applyExecutionLimits(validateRows(rows));
+  return applyExecutionLimits(validateRows(attachBindings(rows, state), { excludedIds: state.excludedRows }));
 }
 
 function applyExecutionLimits(rows) {
   return rows.map((row) => {
+    if (row.terminal) return row;
     // Checked first and regardless of the underlying status: the user said "not this one",
     // and that answer should not be buried behind another message. The real status is
     // re-derived if the row is put back in.
@@ -2023,6 +1979,7 @@ function applyExecutionLimits(rows) {
     if (row.action === "Copy" && !state.outputDirectory?.handle) {
       return { ...row, status: "Output permission needed" };
     }
+    if (row.needsCheck) return { ...row, status: "Needs check" };
     return row;
   });
 }
@@ -2508,19 +2465,7 @@ function renderSample() {
   els.sampleOutput.textContent = sample;
 }
 
-function summarizeRows() {
-  return state.rows.reduce((summary, row) => {
-    if (row.status === "OK") {
-      summary.ok += 1;
-    } else if (String(row.status || "").startsWith("Error:")) {
-      summary.error += 1;
-      summary.blocked += 1;
-    } else {
-      summary.blocked += 1;
-    }
-    return summary;
-  }, { ok: 0, blocked: 0, error: 0 });
-}
+function summarizeRows() { return rowCounts(state.rows); }
 
 function describeRule(rule) {
   if (rule.target === "Replace") {
@@ -2574,16 +2519,7 @@ function ruleTargetLabel(target) {
 }
 
 function statusKind(status) {
-  if (status === "OK") {
-    return "ok";
-  }
-  if (status === "Done") {
-    return "done";
-  }
-  if (String(status).startsWith("Error:")) {
-    return "error";
-  }
-  return "warn";
+  return rowBucket(status);
 }
 
 function textCell(text, title = "") {
@@ -2617,10 +2553,18 @@ function statusCell(row) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "fix-button";
+    button.disabled = state.busy || row.terminal;
     button.textContent = tKey(fix.labelKey);
     button.addEventListener("click", () => applyRowFix(row.id, fix));
     td.append(button);
   }
+  if (row.manual) {
+    const marker = document.createElement("span");
+    marker.className = "manual-marker";
+    marker.textContent = tKey("review.manual");
+    td.append(marker);
+  }
+  if (row.filesystemError) td.append(document.createTextNode(` (${row.filesystemError.name})`));
   return td;
 }
 
@@ -2702,9 +2646,9 @@ function translateStatus(row) {
     return tKey(`status.${text}`);
   }
   const detail = row?.statusDetail;
-  const body = detail?.code
-    ? tKey(`error.${detail.code}`, detail.params || {})
-    : text.slice("Error:".length).trim();
+  const key = detail?.code ? `error.${detail.code}` : "";
+  const translated = key ? tKey(key, detail.params || {}) : "";
+  const body = translated && translated !== key ? translated : text.slice("Error:".length).trim();
   return `${tKey("status.error")}: ${body}`;
 }
 

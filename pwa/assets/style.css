@@ -571,6 +571,7 @@ textarea:focus-visible {
   min-height: 100vh;
   display: grid;
   grid-template-rows: auto 1fr auto;
+  grid-template-columns: minmax(0, 1fr);
   position: relative;
 }
 
@@ -626,6 +627,7 @@ textarea:focus-visible {
 }
 
 .workspace {
+  min-width: 0;
   width: min(1480px, 100%);
   margin: 0 auto;
   padding: 18px clamp(12px, 2vw, 28px) 28px;
@@ -691,6 +693,7 @@ textarea:focus-visible {
 }
 
 .panel {
+  min-width: 0;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel-bg);
@@ -1422,7 +1425,8 @@ tr[data-status="done"] {
   color: var(--ok);
 }
 
-.status-pill.warn {
+.status-pill.warn,
+.status-pill.partial {
   background: color-mix(in srgb, var(--surface) 72%, var(--warn) 28%);
   color: var(--warn);
 }
@@ -2187,3 +2191,12 @@ body[data-template="cyber"] .workspace {
     width: 100%;
   }
 }
+.write-policy {
+  margin: 0 20px 16px;
+  padding: 12px 16px;
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+.write-policy p { margin: 0 0 8px; }
+.manual-marker { display: block; font-size: 0.85rem; margin-top: 4px; }

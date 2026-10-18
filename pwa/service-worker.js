@@ -2,7 +2,9 @@
 // with no revalidation, so a returning user keeps serving the old app.js until a byte change
 // in THIS file makes the browser install a new worker. Shipping app changes without bumping
 // the version means nobody who has already opened the app ever sees them.
-const CACHE_NAME = "batch-file-renamer-v7";
+const CACHE_NAME = "batch-file-renamer-v8";
+const CACHE_NAMESPACE = `batch-file-renamer:${encodeURIComponent(new URL(self.registration.scope).pathname)}:`;
+const CACHE_KEY = `${CACHE_NAMESPACE}${CACHE_NAME}`;
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -11,6 +13,10 @@ const APP_SHELL = [
   "./assets/app.js",
   "./assets/rules.js",
   "./assets/settings.js",
+  "./assets/review-messages.js",
+  "./assets/filesystem.js",
+  "./assets/execution.js",
+  "./assets/preview-state.js",
   "./assets/icon.svg",
   "./assets/backgrounds/material.jpg",
   "./assets/backgrounds/anime.jpg",
@@ -76,13 +82,13 @@ const APP_SHELL = [
 ];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
+  event.waitUntil(caches.open(CACHE_KEY).then((cache) => cache.addAll(APP_SHELL)));
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) => Promise.all(
-      keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
+      keys.filter((key) => key.startsWith(CACHE_NAMESPACE) && key !== CACHE_KEY).map((key) => caches.delete(key))
     ))
   );
   self.clients.claim();
@@ -99,6 +105,6 @@ self.addEventListener("fetch", (event) => {
     return;
   }
   event.respondWith(
-    caches.match(event.request).then((cached) => cached || fetch(event.request))
+    caches.open(CACHE_KEY).then((cache) => cache.match(event.request)).then((cached) => cached || fetch(event.request))
   );
 });

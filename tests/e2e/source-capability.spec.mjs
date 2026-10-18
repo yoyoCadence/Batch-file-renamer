@@ -39,7 +39,7 @@ test("files added via the file input are flagged preview-only and cannot be exec
   await expect(execute).toHaveAttribute("title", /選擇來源資料夾/);
 });
 
-test("picking a real source folder switches the strip to ready and enables execute", async ({ page }) => {
+test("folder permissions alone do not bypass strict mode; controlled mode is explicit", async ({ page }) => {
   await page.addInitScript(installFakeFileSystem);
   await page.goto("/index.html");
   await page.click("#pickSourceFolderButton");
@@ -47,6 +47,9 @@ test("picking a real source folder switches the strip to ready and enables execu
 
   const strip = page.locator("#sourceCapability");
   await expect(strip).toHaveAttribute("data-state", "ready");
+  await expect(page.locator("#executeButton")).toBeDisabled();
+  await expect(page.locator("#capabilityTitle")).toContainText("嚴格模式");
+  await page.check("#controlledWritesInput");
   await expect(page.locator("#capabilityTitle")).toHaveText("可直接改檔名");
   await expect(page.locator("#capabilityDetail")).toContainText("寫入權限");
   await expect(page.locator("#executeButton")).toBeEnabled();

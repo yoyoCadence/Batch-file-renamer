@@ -9,6 +9,8 @@ It rebuilds the legacy PowerShell utility as a static PWA, keeping local file wo
 
 Live App: https://yoyocadence.github.io/Batch-file-renamer/
 
+Strict preview mode is the default: browsers cannot guarantee atomic no-overwrite operations. Direct rename/copy requires explicitly enabling controlled-folder mode for this session, with backups and no external writers. Imported CSV plans must be bound to selected files and the real output directory. Manual names and exclusions survive rechecks; unresolved undo records remain retryable. Export a recovery report before closing. [Safety limits and verification scope](docs/review-phase-0-1.md).
+
 Use it when you need to:
 
 - Clean up photos, PDFs, scans, reports, or exported files in bulk.

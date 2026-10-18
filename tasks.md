@@ -6,7 +6,12 @@ Use this file as the lightweight task board for this project unless the project 
 
 ## In Progress
 
+
 ## Backlog
+
+- [ ] Review Plan V1.0.0 Phase 2 (RV-10–13): rule schemas/trace, structured status/storage, versioned CSV wizard, and case-only platform investigation.
+- [ ] Review Plan V1.0.0 Phase 3 (RV-14–17): workspace redesign, rule editing/sorting, accessibility/theme audit and pet isolation.
+- [ ] Review Plan V1.0.0 Phase 4 (RV-18–20): complete SW lifecycle tests, optional-asset caching, Worker deadlines/performance and release documentation.
 
 > T037-T042 come from the 2026-07-25 usability review of the shipped PWA. They are ordered
 > for implementation: each one is independently shippable, and later tasks assume the earlier
@@ -15,6 +20,17 @@ Use this file as the lightweight task board for this project unless the project 
 
 
 ## Done
+
+- [x] T045 / RV-01–03 - Establish strict fake filesystem regressions and a Node + Chromium PR gate.
+  - Missing files/removes now throw; fake FS supports identity, case-insensitive names, read/permission/create/open/write/close/remove failures and deterministic pause points. Seven browser regressions first failed against the baseline with content assertions.
+  - PR CI and Pages deployment now install Chromium and require both test suites; retain failure traces/screenshots. Port 4187 avoids an unrelated app previously reused on 4173.
+- [x] T046 / RV-04–07 - Fail closed on unknown filesystem state, snapshot execution plans, journal partial operations, and retry safe undo.
+  - Added `filesystem.js` and `execution.js`: real handle identities, SHA-256/metadata checks, immutable plans, synchronous preflight lock plus cross-tab Web Lock, cancellation boundaries and per-stage journals. Undo retains conflicts and retries unresolved rows; JSON reports retain all batches.
+  - Strict preview is the default because browser creation is not exclusive. Session-only controlled-folder mode clearly discloses the remaining external race window; no atomic no-overwrite claim. Added minimal SW reload/cache guards needed to protect in-memory recovery records.
+- [x] T047 / RV-08–09 - Preserve source identities, exclusions and manual overrides; bind CSV plans to real files and directories.
+  - IDs are assigned on load; copy IDs include template context. All collision rows block, exclusions release other rows, manual edits survive rechecks/rule changes, async revisions reject stale results, and successful execute/undo reconciles source handles.
+  - Target folders are read-only real bindings. Imported OK is ignored; explicit CSV binding requires exact source/template and directory matches. Versioned schema/mapping UI remains RV-12.
+  - Validation: 77 Node tests; 78 Chromium tests; a targeted 23-case re-run after disk-check refinements; desktop/mobile screenshots and no page overflow at 1280/1024/768/390/360, plus four-language mobile safety-copy checks. Windows temporary-file adapter verifies Unicode/binary rename/undo/Copy and occupied originals. Native browser picker/sharing/lock-file behavior remains unverified, documented in `docs/review-phase-0-1.md`.
 
 - [x] T044 - Add the project introduction illustrations to `README.md` so a first-time reader understands the purpose and the design.
   - Added six generated intro images under `docs/images/` (a 1200x630 banner plus five 16:9 concept slides) and wired them into the Traditional Chinese README.

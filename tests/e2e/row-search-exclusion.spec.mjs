@@ -98,6 +98,7 @@ test("an excluded row is skipped by execute while the others still run", async (
   await betaRow.locator('input[type="checkbox"]').check();
   await page.click("#excludeSelectedButton");
 
+  await page.check("#controlledWritesInput");
   await page.click("#executeButton");
   await expect(page.locator("#statusText")).toContainText("2");
 

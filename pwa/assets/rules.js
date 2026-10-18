@@ -555,7 +555,7 @@ export function buildPreviewRows(options) {
       rows.push(makePreviewRow({
         // Deliberately stable across rebuilds (no timestamp): the app keys per-row state such
         // as selection and exclusion off the id, and that must survive a re-preview.
-        id: `copy-${index}`,
+        id: `copy-${template.key || template.name}-${index}`,
         action: "Copy",
         sourceName: template.name,
         sourcePath: template.path || template.name,
@@ -595,7 +595,7 @@ export function buildPreviewRows(options) {
   const rows = sources.map((source, index) => {
     const result = applyNameResult(source.name, rules, index, valueLines, now);
     return makePreviewRow({
-      id: `rename-${source.key || source.name}-${index}`,
+      id: `rename-${source.id || source.key || source.path || source.name}`,
       action: "Rename",
       sourceName: source.name,
       sourcePath: source.path || source.name,
@@ -613,13 +613,24 @@ export function buildPreviewRows(options) {
 }
 
 export function validateRows(rows, options = {}) {
-  const seen = new Set();
+  const excluded = options.excludedIds || new Set();
+  const keyFor = (row) => `${row.targetDirectoryKey || row.targetFolderKey || normalizePathKey(row.targetFolder)}\0${normalizePathKey(row.targetName)}`;
+  const groups = new Map();
+  for (const row of rows) {
+    if (excluded.has(row.id) || row.terminal || row.imported && !row.bound) continue;
+    const key = keyFor(row);
+    groups.set(key, (groups.get(key) || 0) + 1);
+  }
   const existingTargets = new Set((options.existingTargets || []).map((value) => normalizePathKey(value)));
 
   return rows.map((row, index) => {
     const next = { ...row, no: index + 1 };
     const targetPath = joinDisplayPath(next.targetFolder, next.targetName);
     next.targetPath = targetPath;
+    if (next.terminal) return next;
+    if (excluded.has(next.id)) return { ...next, status: "Excluded" };
+    if (next.imported && !next.bound) return { ...next, status: "Binding required" };
+    if (next.filesystemError) return { ...next, status: "Filesystem unknown" };
     let status = String(next.status || "").startsWith("Error:") ? next.status : "OK";
 
     if (String(status).startsWith("Error:")) {
@@ -645,12 +656,8 @@ export function validateRows(rows, options = {}) {
       status = "No change";
     } else if (next.targetExists || existingTargets.has(normalizePathKey(targetPath))) {
       status = "Target exists";
-    } else if (seen.has(normalizePathKey(targetPath))) {
+    } else if (groups.get(keyFor(next)) > 1) {
       status = "Duplicate target";
-    }
-
-    if (status === "OK") {
-      seen.add(normalizePathKey(targetPath));
     }
     next.status = status;
     return next;
@@ -700,11 +707,14 @@ export function executionLogToCsv(entries = []) {
 
 export function parsePreviewCsv(text, options = {}) {
   const { importedFolderLabel = "Imported" } = options;
-  const records = parseCsvRecords(text);
+  const records = parseCsvRecords(String(text).replace(/^\uFEFF/, ""));
   if (records.length < 2) {
     return [];
   }
   const headers = records[0].map((header) => header.trim());
+  for (const field of ["Action", "SourceName", "TargetName"]) {
+    if (!headers.includes(field)) throw codedError("csvInvalid", `CSV is missing required field: ${field}`);
+  }
   return records.slice(1).filter((record) => record.some((cell) => cell !== "")).map((record, index) => {
     const data = {};
     headers.forEach((header, cellIndex) => {
@@ -715,6 +725,12 @@ export function parsePreviewCsv(text, options = {}) {
     const targetName = data.TargetName || getFileName(targetPath) || getFileName(sourcePath);
     const targetFolder = data.TargetFolder || getFolderName(targetPath) || getFolderName(sourcePath) || importedFolderLabel;
     const sourceName = data.SourceName || getFileName(sourcePath);
+    if (!["Rename", "Copy"].includes(data.Action) || !sourceName || !targetName || !targetFolder) {
+      throw codedError("csvInvalid", `CSV row ${index + 2} has an invalid action or empty required field.`);
+    }
+    if ((sourcePath && getFileName(sourcePath) !== sourceName) || (targetPath && targetPath !== joinDisplayPath(targetFolder, targetName))) {
+      throw codedError("csvInvalid", `CSV row ${index + 2} has inconsistent name/path fields.`);
+    }
 
     return makePreviewRow({
       id: `import-${Date.now()}-${index}`,
@@ -726,7 +742,8 @@ export function parsePreviewCsv(text, options = {}) {
       targetFolder,
       targetFolderKey: "imported",
       sourceRef: null,
-      status: data.Status || "Imported"
+      status: "Binding required",
+      imported: true
     });
   });
 }
@@ -756,12 +773,14 @@ function makePreviewRow(row) {
     sourcePath: row.sourcePath,
     sourceKey: row.sourceKey,
     targetName: row.targetName,
+    generatedTargetName: row.targetName,
     targetFolder: row.targetFolder,
     targetFolderKey: row.targetFolderKey,
     targetPath: joinDisplayPath(row.targetFolder, row.targetName),
     status: row.status || "OK",
     statusDetail: row.statusDetail || null,
     sourceRef: row.sourceRef || null,
+    imported: Boolean(row.imported),
     targetExists: Boolean(row.targetExists)
   };
 }
@@ -820,6 +839,7 @@ function parseCsvRecords(text) {
     }
   }
 
+  if (inQuotes) throw codedError("csvInvalid", "CSV has an unterminated quoted field.");
   record.push(cell.replace(/\r$/, ""));
   records.push(record);
   return records;

@@ -141,7 +141,7 @@ test("generated pet action assets exist and are transparent pngs", async () => {
 
 test("service worker caches all project-bound runtime assets", async () => {
   const worker = await readFile("pwa/service-worker.js", "utf8");
-  assert.match(worker, /batch-file-renamer-v7/);
+  assert.match(worker, /batch-file-renamer-v8/);
   assert.match(worker, /SKIP_WAITING/);
   for (const asset of [
     "./assets/settings.js",
@@ -183,7 +183,7 @@ test("undo-last-batch wiring and localized labels are present", async () => {
   assert.match(rules, /export function planUndoOperations/);
 
   const app = await readFile("pwa/assets/app.js", "utf8");
-  assert.match(app, /planUndoOperations/);
+  assert.match(app, /undoBatch/);
   assert.match(app, /async function undoLastBatch/);
   assert.match(app, /function updateUndoAvailability/);
   assert.match(app, /state\.lastBatch/);
@@ -320,7 +320,7 @@ test("rule errors and folder labels are localized instead of leaking English", a
   // The rule card must not print the raw target enum any more.
   assert.doesNotMatch(app, /escapeHtml\(rule\.target\)/);
   assert.match(app, /function translateStatus\(row\)/);
-  assert.match(app, /tKey\(`error\.\$\{detail\.code}`/);
+  assert.match(app, /`error\.\$\{detail\.code}`/);
   assert.match(app, /tKey\("folder\.browserFiles"\)/);
   assert.match(app, /sourceFolderFallback: tKey\("folder\.sourceFolder"\)/);
   assert.doesNotMatch(app, /throw new Error\(/);
@@ -651,11 +651,11 @@ test("preview row search and batch exclusion are wired and localized", async () 
   // Exclusion is deliberate user intent, so it gates execution via the row status.
   assert.match(app, /state\.excludedRows\.has\(row\.id\)/);
   // Loading a different source set must not inherit exclusions from the previous one.
-  assert.equal((app.match(/state\.excludedRows\.clear\(\);/g) || []).length, 4);
+  assert.equal((app.match(/state\.excludedRows\.clear\(\);/g) || []).length, 6);
 
   const rules = await readFile("pwa/assets/rules.js", "utf8");
   // Copy row ids must stay stable across rebuilds or per-row state would be lost.
-  assert.match(rules, /id: `copy-\$\{index}`/);
+  assert.match(rules, /id: `copy-\$\{template\.key \|\| template\.name}-\$\{index}`/);
   assert.doesNotMatch(rules, /copy-\$\{Date\.now\(\)}/);
 
   const css = await readFile("pwa/assets/style.css", "utf8");
