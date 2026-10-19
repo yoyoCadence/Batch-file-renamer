@@ -2,14 +2,24 @@
 
 Use this file as the lightweight task board for this project unless the project explicitly uses GitHub Issues, Linear, Notion, or another tracker.
 
+Current handoff: [review-handoff.md](docs/review-handoff.md). Phase 0/1 merged in [#20](https://github.com/yoyoCadence/Batch-file-renamer/pull/20); Phase 2 merged in [#21](https://github.com/yoyoCadence/Batch-file-renamer/pull/21) (`3e16d25`). Work stopped after Phase 2 at the user's request. Next items are queued for a future authorized session, not in progress. The [original plan](docs/Batch_File_Renamer_Review_Plan_V1.0.0.md) is archived; its baseline findings are historical, not current completion status.
+
 ## Next
+
+- [ ] T053 / RV-11 follow-up (P2) - Reproduce and fix stale `statusCode` after resetting imported bindings. Check source/output changes and mode switches; badge/count/filter must become unbound immediately and execution must refuse unbound rows. [Review](https://github.com/yoyoCadence/Batch-file-renamer/pull/21#discussion_r4313025825).
+- [ ] T054 / RV-12 follow-up (P2) - Parse invalid CSV into temporary state before replacing the active plan. Unsupported versions and spreadsheet views must preserve rows, overrides, exclusions and bindings with UI/state consistency. Retain valid mapping/record-error behavior. [Review](https://github.com/yoyoCadence/Batch-file-renamer/pull/21#discussion_r4313025834). Do after T053.
 
 ## In Progress
 
 ## Backlog
 
-- [ ] Review Plan V1.0.0 Phase 3 (RV-14–17): workspace redesign, rule editing/sorting, accessibility/theme audit and pet isolation.
-- [ ] Review Plan V1.0.0 Phase 4 (RV-18–20): complete SW lifecycle tests, optional-asset caching, Worker deadlines/performance and release documentation.
+- [ ] T055 / RV-14 (Phase 3) - Make preview the main workspace, simplify the header, collapse source/rules and clarify primary actions. At 1280/1440 the first screen must show useful populated preview; preserve execution semantics. Start after the Phase 2 follow-ups.
+- [ ] T056 / RV-15 (Phase 3) - Add rule editing/copy, natural sort, manual override indicators and conflict-group navigation. Trace must agree with results; sorting/editing must preserve stable IDs, exclusions and overrides. Depends on T055; split into focused PRs.
+- [ ] T057 / RV-16 (Phase 3) - Audit semantic theme tokens/contrast, dialog focus/trap/Escape, keyboard/ARIA and responsive layout. Verify four locales, 1440/1280/1024/768/390/360 and 200% zoom with populated/error/executing/completed states. Depends on T055; split by theme/dialog/layout where needed.
+- [ ] T058 / RV-17 (Phase 3) - Isolate pets from controls, support reduced motion/pause and complete pet i18n. Verify no click interception, Chinese/raw keys in English UI or animation loops after disabling. Depends on T057.
+- [ ] T059 / RV-18 (Phase 4) - Complete SW update/offline/multi-tab tests around the existing namespace and reload guards. Working previews/journals must survive controller changes; offline core must load. Existing minimal guards are already done.
+- [ ] T060 / RV-19 (Phase 4) - Lazy-cache optional assets, bound regex with a terminable Worker and measure large-batch throttling; add virtualization only if measurements justify it. Core startup must not wait for all backgrounds. Depends on T055/T059; split caching/Worker/performance work.
+- [ ] T061 / RV-20 (Phase 4) - Reconcile README/AGENTS/changelog/tasks with shipped capabilities and record release/version/cache verification. Depends on relevant fixes and the release matrix; do not claim native FS guarantees from mocks. Full acceptance details are in the archived plan §§7–8.
 
 > T037-T042 come from the 2026-07-25 usability review of the shipped PWA. They are ordered
 > for implementation: each one is independently shippable, and later tasks assume the earlier
@@ -18,6 +28,8 @@ Use this file as the lightweight task board for this project unless the project 
 
 
 ## Done
+
+- [x] T052 - Audit and strengthen agent handoff documentation after Phase 2. Archive the exact original review plan, add `docs/review-handoff.md`, record merged PR/CI/Pages results, correct the stale Phase 0/1 next step and expand Phase 3/4 tasks. Record two post-merge P2 findings separately as T053/T054; no runtime changes or Phase 3 work.
 
 - [x] T048 / RV-10 - Normalize each rule type to its own fields and share one trace engine with the preview/sample/cards. Preserve multi-dot extensions, repair reserved first components, keep literal dollar tokens literal and regex capture replacements compatible.
 - [x] T049 / RV-11 - Use stable status codes for execution, summaries, filters and fixes. Catch localStorage getter/read/write/quota failures; settings continue in memory with a persistent warning.

@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Agent handoff (T052)
+
+- Archive the original review plan and add `docs/review-handoff.md` with merged PR/CI/Pages evidence, current limits and scoped Phase 3/4 tasks. Record two post-merge P2 review findings as T053/T054; these follow-ups remain open. No runtime changes.
+
 ### Review Plan V1.0.0 — Phase 2 (T048–T051)
 
 - Normalize rules by type and share engine traces across cards, samples and previews. Repair multi-dot reserved names and make literal dollar replacement predictable.

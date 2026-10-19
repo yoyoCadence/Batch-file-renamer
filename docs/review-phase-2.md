@@ -2,6 +2,8 @@
 
 基準：PR #20 的 `fe12d31`；本次範圍為 RV-10～13（T048～T051）。Phase 3、4 保留在待辦。本階段不改變 strict preview、受控資料夾寫入與記憶體內復原記錄的界線，詳見 [Phase 0/1](review-phase-0-1.md)。
 
+完成紀錄：已在 [PR #21](https://github.com/yoyoCadence/Batch-file-renamer/pull/21) 合併到 main（`3e16d25`），PR CI 與 Pages workflow 成功。合併後送達兩項 P2 審查，尚未修復；最新狀態與 T053/T054 的重現／驗收見 [交接入口](review-handoff.md)。
+
 ## 規則與狀態
 
 - `rules.js` 以各類型 schema 正規化規則；切換類型後不保留無關欄位，例如 Affix 不會受隱藏 List 模式影響。舊 preset 的大寫欄位名稱仍可讀取。
