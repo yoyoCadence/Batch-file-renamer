@@ -23,7 +23,7 @@
 
 官方參考：[File System Standard](https://fs.spec.whatwg.org/)、[Chrome File System Access API](https://developer.chrome.com/docs/capabilities/web-apis/file-system-access)。不能因為存在 `move` 就假定使用者選取目錄支援不可覆寫的原生 rename。
 
-只改大小寫仍維持 No change；通過 Windows 原生瀏覽器能力試驗前不啟用。雜湊目前讀取完整 File，超大檔案的記憶體與重複驗證成本留待 RV-19。無跨 reload 的 journal 持久化；handle 的底層身份語意也不能偵測所有外部同名替換。
+本階段只改大小寫維持 No change；後續 [Phase 2](review-phase-2.md) 已改為明示尚不支援，通過 Windows 原生瀏覽器能力試驗前仍不啟用。雜湊目前讀取完整 File，超大檔案的記憶體與重複驗證成本留待 RV-19。無跨 reload 的 journal 持久化；handle 的底層身份語意也不能偵測所有外部同名替換。
 
 為保護進行中的 journal，本次補必要 SW guard：首次 claim 不重載、有工作時拒絕套用更新、其他分頁 controllerchange 不重載；cache 以應用及 scope 命名，僅清自己的舊版本。舊版未含 scope 的 cache 因無法確認歸屬而保留。完整更新／離線矩陣及選用素材 lazy cache 仍留待 RV-18～19。
 

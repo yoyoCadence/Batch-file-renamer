@@ -2,6 +2,7 @@ import {
   EMPTY_SCOPE,
   applyRulesToName,
   buildPreviewRows,
+  codedError,
   diffSpan,
   errorDetail,
   escapeReservedName,
@@ -11,7 +12,9 @@ import {
   isScopeActive,
   joinDisplayPath,
   nextAvailableName,
+  normalizeRule,
   normalizeRules,
+  traceRulesToName,
   parsePreviewCsv,
   parseValueLines,
   rowsToCsv,
@@ -39,11 +42,17 @@ import {
   saveSettings,
   t
 } from "./settings.js";
+import { storageAvailable } from "./storage.js";
+import { isReady, normalizeRowStatus, statusCode, statusLabel } from "./status.js";
+import { CSV_MAX_BYTES, parseCsvRecords } from "./csv.js";
 import { fileExists, withWriteLock } from "./filesystem.js";
 import { createBatch, createExecutionPlan, reconcileRecoveryDependencies, recoverableEntries, recoveryReport, runBatch, undoBatch } from "./execution.js";
 import { attachBindings, bindImportedRows, mergeOverrides, rowBucket, rowCounts } from "./preview-state.js";
 
 const state = {
+  previewTime: new Date(),
+  pendingCsv: null,
+  csvMappingDirty: false,
   mode: "rename",
   sources: [],
   template: null,
@@ -137,24 +146,24 @@ const LIVE_PREVIEW_DELAY = 200;
 // (Preview only / Source folder only / Output permission needed) are explained there instead
 // of repeating the same sentence on every row.
 const STATUS_REASONS = {
-  "Duplicate target": "reason.duplicateTarget",
-  "Target exists": "reason.targetExists",
-  "Invalid filename": "reason.invalidFilename",
-  "Reserved name": "reason.reservedName",
-  "Trailing dot or space": "reason.trailingDotOrSpace",
-  "No change": "reason.noChange",
-  Excluded: "reason.excluded",
-  "Target name empty": "reason.targetNameEmpty",
-  "Target folder empty": "reason.targetFolderEmpty"
+  duplicate: "reason.duplicateTarget",
+  occupied: "reason.targetExists",
+  invalid: "reason.invalidFilename",
+  reserved: "reason.reservedName",
+  trailing: "reason.trailingDotOrSpace",
+  unchanged: "reason.noChange",
+  excluded: "reason.excluded",
+  emptyName: "reason.targetNameEmpty",
+  emptyFolder: "reason.targetFolderEmpty"
 };
 // Only statuses with a deterministic repair get a button; anything needing a human decision
 // (a rule error, a permission problem) does not.
 const ROW_FIXES = {
-  "Duplicate target": { labelKey: "fix.autoNumber", kind: "autoNumber" },
-  "Target exists": { labelKey: "fix.autoNumber", kind: "autoNumber" },
-  "Invalid filename": { labelKey: "fix.sanitize", kind: "sanitize" },
-  "Reserved name": { labelKey: "fix.escapeReserved", kind: "escapeReserved" },
-  "Trailing dot or space": { labelKey: "fix.stripTrailing", kind: "stripTrailing" }
+  duplicate: { labelKey: "fix.autoNumber", kind: "autoNumber" },
+  occupied: { labelKey: "fix.autoNumber", kind: "autoNumber" },
+  invalid: { labelKey: "fix.sanitize", kind: "sanitize" },
+  reserved: { labelKey: "fix.escapeReserved", kind: "escapeReserved" },
+  trailing: { labelKey: "fix.stripTrailing", kind: "stripTrailing" }
 };
 const $ = (id) => document.getElementById(id);
 
@@ -251,6 +260,13 @@ const els = {
   cancelBatchButton: $("cancelBatchButton"),
   exportRecoveryButton: $("exportRecoveryButton"),
   exportCsvButton: $("exportCsvButton"),
+  exportSpreadsheetButton: $("exportSpreadsheetButton"),
+  persistenceWarning: $("persistenceWarning"),
+  csvBindingPanel: $("csvBindingPanel"),
+  csvMappingFields: $("csvMappingFields"),
+  csvBindingSummary: $("csvBindingSummary"),
+  csvErrorReport: $("csvErrorReport"),
+  applyCsvMappingButton: $("applyCsvMappingButton"),
   importCsvButton: $("importCsvButton"),
   executeButton: $("executeButton"),
   undoButton: $("undoButton"),
@@ -387,7 +403,7 @@ function init() {
   });
   els.bindCsvButton.addEventListener("click", bindCsvPlan);
   els.newPreviewButton.addEventListener("click", () => {
-    state.importedPlan = false;
+    state.importedPlan = false; state.pendingCsv = null;
     state.overrides.clear(); state.excludedRows.clear();
     resetPreviewRows(); runLivePreview();
   });
@@ -399,7 +415,9 @@ function init() {
   els.exportRecoveryButton.addEventListener("click", () => {
     downloadBlob(new Blob([JSON.stringify(recoveryReport(state.batches), null, 2)], { type: "application/json" }), "rename-recovery.json");
   });
-  els.exportCsvButton.addEventListener("click", exportCsv);
+  els.exportCsvButton.addEventListener("click", () => exportCsv());
+  els.exportSpreadsheetButton.addEventListener("click", () => exportCsv(true));
+  els.applyCsvMappingButton.addEventListener("click", () => applyCsvImport(true));
   els.importCsvButton.addEventListener("click", () => els.csvInput.click());
   els.csvInput.addEventListener("change", importCsv);
   els.executeButton.addEventListener("click", executeRows);
@@ -651,13 +669,13 @@ function applySettingsFromForm() {
     petMotion: els.petMotionSelect.value
   });
   applyCurrentSettings();
-  setStatusKey("status.settingsApplied");
+  setStatusKey(storageAvailable() ? "status.settingsApplied" : "phase2.storageFailed");
 }
 
 function resetSettings() {
   state.settings = saveSettings(DEFAULT_SETTINGS);
   applyCurrentSettings();
-  setStatusKey("status.settingsReset");
+  setStatusKey(storageAvailable() ? "status.settingsReset" : "phase2.storageFailed");
 }
 
 function renderTemplateCards() {
@@ -976,7 +994,7 @@ function addRule() {
 }
 
 function readRuleForm() {
-  return {
+  return normalizeRule({
     target: els.targetSelect.value,
     fromEnd: els.directionSelect.value === "FromEnd",
     delimiter: els.delimiterInput.value,
@@ -998,7 +1016,7 @@ function readRuleForm() {
     newExtension: els.newExtensionInput.value,
     cleanupMode: els.cleanupModeSelect.value,
     enabled: true
-  };
+  });
 }
 
 // Rule edits should show their effect without the user having to ask. This runs the same
@@ -1122,10 +1140,12 @@ function runLivePreview() {
   if (activeRules.length === 0 || state.mode === "rename" && state.sources.length > 0 && scopedSources().length === 0) {
     resetPreviewRows(); renderPreview(); return;
   }
+  state.previewTime = new Date();
   const result = buildPreviewRows(previewOptions(activeRules));
   state.rowsRevision++;
   if (!result.ok) { state.rows = []; renderPreview(); setStatus(guardMessage(result)); return; }
   state.rows = validateForApp(mergeOverrides(result.rows, state.overrides));
+  renderRules();
   renderPreview();
 }
 
@@ -1139,6 +1159,7 @@ function previewOptions(activeRules = state.rules.filter((rule) => rule.enabled 
     rules: activeRules,
     valueListText: els.valueListInput.value,
     previousRows: state.rows,
+    now: state.previewTime,
     sourceFolderFallback: tKey("folder.sourceFolder")
   };
 }
@@ -1173,7 +1194,7 @@ async function revalidateWithFilesystem(rows) {
   // Sequential IO bounds pressure on large directories.
   for (const row of attachBindings(rows, state)) {
     const next = { ...row, targetExists: false, filesystemError: null, needsCheck: false };
-    const checkable = ["OK", "Target exists", "Filesystem unknown", "Needs check", "Duplicate target"].includes(row.status);
+    const checkable = ["ready", "occupied", "filesystem", "pending", "duplicate"].includes(statusCode(row));
     if (!row.terminal && checkable && row.targetDirectory && (!row.imported || row.bound)) {
       try {
         if (row.action !== "Rename" || row.targetName !== row.sourceName) next.targetExists = await fileExists(row.targetDirectory, row.targetName);
@@ -1197,18 +1218,19 @@ function applyFolderLabel() {
   setStatusKey("review.folderBindingOnly");
 }
 
-async function exportCsv() {
+async function exportCsv(spreadsheet = false) {
   if (state.rows.length === 0) {
     setStatusKey("status.noPreviewExport");
     return;
   }
-  const csv = rowsToCsv(state.rows);
+  const csv = rowsToCsv(state.rows, { spreadsheet });
+  const csvName = spreadsheet ? "rename_spreadsheet_view.csv" : "rename_preview.csv";
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
 
   if ("showSaveFilePicker" in window) {
     try {
       const handle = await window.showSaveFilePicker({
-        suggestedName: "rename_preview.csv",
+        suggestedName: csvName,
         types: [{ description: "CSV", accept: { "text/csv": [".csv"] } }]
       });
       const writable = await handle.createWritable();
@@ -1223,7 +1245,7 @@ async function exportCsv() {
     }
   }
 
-  downloadBlob(blob, "rename_preview.csv");
+  downloadBlob(blob, csvName);
   setStatusKey("status.downloadedCsv");
 }
 
@@ -1232,20 +1254,86 @@ async function importCsv() {
   const [file] = Array.from(els.csvInput.files || []);
   if (!file) return;
   try {
+    if (file.size > CSV_MAX_BYTES) throw codedError("csvInvalid", tKey("phase2.csvTooLarge"));
     const text = await file.text();
     if (state.busy) return;
-    const rows = parsePreviewCsv(text, { importedFolderLabel: tKey("folder.imported") });
+    const headers = (parseCsvRecords(text)[0] || []).map((header) => header.trim());
+    state.pendingCsv = text;
+    state.csvMappingDirty = true;
     window.clearTimeout(state.livePreviewTimer);
     state.importedPlan = true; state.rowsRevision++;
-    state.overrides.clear(); state.excludedRows.clear();
-    state.rows = validateForApp(rows); state.selectedRows.clear();
-    renderPreview(); setStatusKey("review.csvUnbound", { count: rows.length });
+    state.overrides.clear(); state.excludedRows.clear(); state.selectedRows.clear(); state.rows = [];
+    renderCsvMapping(headers);
+    if (["Action", "SourceName", "TargetName"].every((field) => headers.includes(field))) applyCsvImport(false);
+    else { renderPreview(); setStatusKey("phase2.mappingNeeded"); }
   } catch (error) { setStatusKey("status.importFailed", { message: error.message }); }
   finally { els.csvInput.value = ""; }
 }
 
+function renderCsvMapping(headers) {
+  els.csvMappingFields.replaceChildren();
+  for (const field of ["Action", "SourceName", "SourcePath", "TargetName", "TargetFolder", "TargetPath"]) {
+    const label = document.createElement("label");
+    const title = document.createElement("span"); title.dataset.i18n = `phase2.column.${field}`; title.textContent = tKey(title.dataset.i18n);
+    const select = document.createElement("select"); select.dataset.csvField = field;
+    select.setAttribute("aria-label", tKey(`phase2.column.${field}`));
+    select.dataset.i18nAriaLabel = `phase2.column.${field}`;
+    const blank = document.createElement("option"); blank.value = ""; blank.dataset.i18n = "phase2.unmapped"; blank.textContent = tKey("phase2.unmapped"); select.append(blank);
+    for (const header of headers) {
+      const option = document.createElement("option"); option.value = header; option.textContent = header; select.append(option);
+    }
+    select.value = headers.includes(field) ? field : "";
+    select.addEventListener("change", () => {
+      state.csvMappingDirty = true;
+      state.rowsRevision++;
+      state.rows = validateForApp(state.rows.map((row) => ({ ...row, bound: false, sourceRef: null, targetDirectory: null, status: "Binding required" })));
+      renderPreview();
+    });
+    label.append(title, select); els.csvMappingFields.append(label);
+  }
+}
+
+function applyCsvImport(mapped) {
+  if (state.busy || state.pendingCsv === null) return;
+  try {
+    const columnMap = mapped ? Object.fromEntries([...els.csvMappingFields.querySelectorAll("select")].filter((select) => select.value).map((select) => [select.dataset.csvField, select.value])) : {};
+    const values = Object.values(columnMap);
+    if (new Set(values).size !== values.length) throw codedError("csvInvalid", tKey("phase2.mappingDuplicate"));
+    const rows = parsePreviewCsv(state.pendingCsv, { columnMap, collectErrors: true, importedFolderLabel: tKey("folder.imported") });
+    state.csvMappingDirty = false;
+    state.rowsRevision++; state.overrides.clear(); state.selectedRows.clear();
+    state.rows = validateForApp(rows);
+    renderPreview(); setStatusKey("review.csvUnbound", { count: rows.length });
+  } catch (error) { setStatusKey("status.importFailed", { message: error.message }); }
+}
+
+function renderCsvBinding() {
+  els.csvBindingPanel.hidden = !state.importedPlan;
+  if (!state.importedPlan) return;
+  els.csvBindingSummary.textContent = tKey("phase2.bindingContext", {
+    source: state.mode === "rename" ? state.sourceDirectoryHandle?.name || "-" : state.template?.path || "-",
+    target: state.mode === "rename" ? state.sourceDirectoryHandle?.name || "-" : state.outputDirectory?.name || "-",
+    mode: tKey(`mode.${state.mode}`), bound: state.rows.filter((row) => row.bound).length,
+    total: state.rows.length, invalid: state.rows.filter((row) => row.importError).length
+  });
+  if (state.mode === "rename") {
+    const referenced = new Set(state.rows.filter((row) => !row.importError).map((row) => row.sourcePath));
+    const unused = state.sources.filter((source) => !referenced.has(source.path));
+    if (unused.length) els.csvBindingSummary.textContent += ` ${tKey("phase2.unusedSources", { count: unused.length, names: unused.slice(0, 10).map((source) => source.name).join(", ") })}`;
+  }
+  els.csvErrorReport.replaceChildren();
+  for (const row of state.rows) {
+    if (!row.importError && (!row.bindingError || row.bound)) continue;
+    const item = document.createElement("li");
+    item.textContent = tKey("phase2.csvRowError", { record: row.importedRecord, name: row.sourceName,
+      message: row.importError ? tKey(`phase2.csvReason.${row.importError.code || "fields"}`) : tKey("phase2.bindingMismatch") });
+    els.csvErrorReport.append(item);
+  }
+}
+
 function bindCsvPlan() {
   if (state.busy || !state.importedPlan) return;
+  if (state.csvMappingDirty) { setStatusKey("phase2.mappingNeeded"); return; }
   const rows = bindImportedRows(state.rows, state);
   state.rowsRevision++;
   state.rows = validateForApp(rows);
@@ -1261,7 +1349,7 @@ async function executeRows() {
     await withWriteLock(async () => {
       state.rows = await revalidateWithFilesystem(state.rows);
       renderPreview();
-      const okRows = state.rows.filter((row) => row.status === "OK");
+      const okRows = state.rows.filter(isReady);
       if (!okRows.length) { setStatusKey("status.noOkRows"); return; }
       const plan = await createExecutionPlan(okRows, { controlled: els.controlledWritesInput.checked });
       if (!window.confirm(`${tKey("status.confirmExecute", { count: plan.items.length })}\n\n${tKey("review.confirmControlled")}`)) return;
@@ -1363,7 +1451,7 @@ function updateExecutionLogAvailability() {
 
 function updateRowStatus(id, status, statusDetail = null) {
   state.rowsRevision++;
-  state.rows = state.rows.map((row) => row.id === id ? { ...row, status, statusDetail, terminal: true } : row);
+  state.rows = state.rows.map((row) => row.id === id ? normalizeRowStatus({ ...row, status, statusDetail, terminal: true }) : row);
 }
 
 function scopedSources() {
@@ -1572,26 +1660,9 @@ function sampleName() {
 // unlike the draft sample strip, which only reflects the rule currently being edited.
 // Disabled rules are skipped without advancing the chain, matching how the preview runs.
 function ruleChainPreviews() {
-  const valueLines = parseValueLines(els.valueListInput.value);
-  const results = [];
-  let current = sampleName();
-
-  for (const rule of state.rules) {
-    if (rule.enabled === false) {
-      results.push({ disabled: true });
-      continue;
-    }
-    try {
-      const after = applyRulesToName(current, [rule], 0, valueLines);
-      results.push({ before: current, after });
-      current = after;
-    } catch (error) {
-      // A broken rule stops contributing but must not hide the rules after it, so the chain
-      // carries on from the last good name.
-      results.push({ detail: errorDetail(error), message: error.message });
-    }
-  }
-  return results;
+  return traceRulesToName(sampleName(), state.rules, 0, parseValueLines(els.valueListInput.value), state.previewTime).steps.map((step) => ({
+    ...step, detail: step.error ? errorDetail(step.error) : null, message: step.error?.message
+  }));
 }
 
 function renderRules() {
@@ -1699,6 +1770,11 @@ function rulePreviewNode(entry) {
     node.textContent = tKey("rule.previewDisabled");
     return node;
   }
+  if (entry.blocked) {
+    node.dataset.kind = "error";
+    node.textContent = tKey("phase2.traceBlocked");
+    return node;
+  }
   if (entry.detail || entry.message) {
     node.dataset.kind = "error";
     node.textContent = entry.detail?.code
@@ -1746,6 +1822,7 @@ function moveRule(from, to) {
 }
 
 function renderPreview() {
+  renderCsvBinding();
   els.bindCsvButton.hidden = !state.importedPlan;
   els.newPreviewButton.hidden = !state.importedPlan;
   els.targetFolderInput.value = state.mode === "copy" ? state.outputDirectory?.name || "" : state.sourceDirectoryHandle?.name || "";
@@ -1783,7 +1860,7 @@ function renderPreview() {
 
   for (const row of visibleRows) {
     const tr = document.createElement("tr");
-    tr.dataset.status = statusKind(row.status);
+    tr.dataset.status = statusKind(row);
     tr.dataset.excluded = String(state.excludedRows.has(row.id));
 
     const selected = document.createElement("input");
@@ -1882,7 +1959,7 @@ function getFolderPart(row) {
 function filterVisibleRows(rows) {
   const needle = state.rowSearch.trim().toLowerCase();
   return rows.filter((row) => {
-    if (state.statusFilter && statusKind(row.status) !== state.statusFilter) {
+    if (state.statusFilter && statusKind(row) !== state.statusFilter) {
       return false;
     }
     if (!needle) {
@@ -1955,7 +2032,7 @@ function updateRow(id, patch) {
 }
 
 function validateForApp(rows) {
-  return applyExecutionLimits(validateRows(attachBindings(rows, state), { excludedIds: state.excludedRows }));
+  return applyExecutionLimits(validateRows(attachBindings(rows, state), { excludedIds: state.excludedRows })).map(normalizeRowStatus);
 }
 
 function applyExecutionLimits(rows) {
@@ -1967,7 +2044,7 @@ function applyExecutionLimits(rows) {
     if (state.excludedRows.has(row.id)) {
       return { ...row, status: "Excluded" };
     }
-    if (row.status !== "OK") {
+    if (!isReady(row)) {
       return row;
     }
     if (row.action === "Rename" && row.targetFolderKey !== "source") {
@@ -2403,44 +2480,9 @@ function renderSample() {
   const ext = getFileName(sample).slice(base.length);
   const target = els.targetSelect.value;
 
-  // Affix / Extension / Cleanup have no "region" to point at, so the sample shows the result
-  // straight from the engine rather than re-implementing the transform to draw a highlight
-  // (which is what the Segment and Character branches below need to do).
-  if (target === "Affix" || target === "Extension" || target === "Cleanup") {
-    try {
-      els.sampleOutput.textContent = applyRulesToName(sample, [readRuleForm()], 0, parseValueLines(els.valueListInput.value));
-    } catch {
-      // Incomplete draft rule (empty affix text, empty extension); keep the untouched sample.
-      els.sampleOutput.textContent = sample;
-    }
-    return;
-  }
-
-  if (target === "Replace") {
-    const find = els.findInput.value;
-    if (find) {
-      try {
-        const flags = `g${els.caseInsensitiveInput.checked ? "i" : ""}`;
-        const pattern = els.useRegexInput.checked
-          ? new RegExp(find, flags)
-          : new RegExp(find.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), flags);
-        els.sampleOutput.textContent = base.replace(pattern, els.replaceInput.value) + ext;
-        return;
-      } catch {
-        // Invalid regex while typing; fall back to the raw sample below.
-      }
-    }
-  } else if (target === "Case") {
-    const caseMode = els.caseModeSelect.value;
-    let result = base;
-    if (caseMode === "upper") {
-      result = base.toUpperCase();
-    } else if (caseMode === "lower") {
-      result = base.toLowerCase();
-    } else {
-      result = base.replace(/[^\W_]+/g, (word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase());
-    }
-    els.sampleOutput.textContent = result + ext;
+  if (!["Segment", "Character"].includes(target)) {
+    try { els.sampleOutput.textContent = applyRulesToName(sample, [readRuleForm()], 0, parseValueLines(els.valueListInput.value), state.previewTime); }
+    catch { els.sampleOutput.textContent = sample; }
     return;
   } else if (target === "Segment") {
     const delimiter = els.delimiterInput.value;
@@ -2534,13 +2576,13 @@ function textCell(text, title = "") {
 function statusCell(row) {
   const td = document.createElement("td");
   const badge = document.createElement("span");
-  badge.className = `status-pill ${statusKind(row.status)}`;
+  badge.className = `status-pill ${statusKind(row)}`;
   badge.textContent = translateStatus(row);
   td.append(badge);
 
   // A blocked row is only useful if it says why in plain language and, where the fix is
   // mechanical, offers to apply it.
-  const reasonKey = STATUS_REASONS[row.status];
+  const reasonKey = STATUS_REASONS[statusCode(row)];
   if (reasonKey) {
     const reason = document.createElement("p");
     reason.className = "status-reason";
@@ -2548,7 +2590,7 @@ function statusCell(row) {
     td.append(reason);
   }
 
-  const fix = ROW_FIXES[row.status];
+  const fix = ROW_FIXES[statusCode(row)];
   if (fix) {
     const button = document.createElement("button");
     button.type = "button";
@@ -2565,6 +2607,7 @@ function statusCell(row) {
     td.append(marker);
   }
   if (row.filesystemError) td.append(document.createTextNode(` (${row.filesystemError.name})`));
+  if (row.importError) td.append(document.createTextNode(` (${row.importError.record}: ${tKey(`phase2.csvReason.${row.importError.code || "fields"}`)})`));
   return td;
 }
 
@@ -2626,6 +2669,7 @@ function downloadBlob(blob, fileName) {
 
 function setStatus(message) {
   els.statusText.textContent = message;
+  els.persistenceWarning.hidden = storageAvailable();
 }
 
 function setStatusKey(key, params = {}) {
@@ -2642,8 +2686,8 @@ function tKey(key, params = {}) {
 // back to the raw message.
 function translateStatus(row) {
   const text = String(row?.status ?? "");
-  if (!text.startsWith("Error:")) {
-    return tKey(`status.${text}`);
+  if (statusCode(row) !== "failed") {
+    return tKey(`status.${statusLabel(row)}`);
   }
   const detail = row?.statusDetail;
   const key = detail?.code ? `error.${detail.code}` : "";

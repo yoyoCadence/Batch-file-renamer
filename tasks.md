@@ -6,10 +6,8 @@ Use this file as the lightweight task board for this project unless the project 
 
 ## In Progress
 
-
 ## Backlog
 
-- [ ] Review Plan V1.0.0 Phase 2 (RV-10–13): rule schemas/trace, structured status/storage, versioned CSV wizard, and case-only platform investigation.
 - [ ] Review Plan V1.0.0 Phase 3 (RV-14–17): workspace redesign, rule editing/sorting, accessibility/theme audit and pet isolation.
 - [ ] Review Plan V1.0.0 Phase 4 (RV-18–20): complete SW lifecycle tests, optional-asset caching, Worker deadlines/performance and release documentation.
 
@@ -20,6 +18,13 @@ Use this file as the lightweight task board for this project unless the project 
 
 
 ## Done
+
+- [x] T048 / RV-10 - Normalize each rule type to its own fields and share one trace engine with the preview/sample/cards. Preserve multi-dot extensions, repair reserved first components, keep literal dollar tokens literal and regex capture replacements compatible.
+- [x] T049 / RV-11 - Use stable status codes for execution, summaries, filters and fixes. Catch localStorage getter/read/write/quota failures; settings continue in memory with a persistent warning.
+- [x] T050 / RV-12 - Add raw CSV schema 2, bounded strict parsing, explicit column mapping, source/directory binding, unused-source summaries and per-record errors. Mapping changes revoke binding; all duplicate operations/repeated Rename sources block. Separate spreadsheet-safe view output from exact raw round-trip plans.
+- [x] T051 / RV-13 - Verify case-insensitive behavior with the Windows temporary-file adapter and test that case-only plans perform no operations. Native browser safety is not established, so keep execution blocked and show an explicit unsupported status.
+  - Phase 2 validation: 89 Node tests and 85 Chromium tests passed; the 7 Phase 2 browser cases passed again after binding refinements. Desktop/mobile checks cover five widths and all four languages without overflow or console/page errors. Cache v9 includes the new modules. See `docs/review-phase-2.md` for contracts, evidence and remaining native-browser limits.
+  - Stop after the Phase 2 PR is merged, per the user's instruction; Phase 3/4 remain in Backlog.
 
 - [x] T045 / RV-01–03 - Establish strict fake filesystem regressions and a Node + Chromium PR gate.
   - Missing files/removes now throw; fake FS supports identity, case-insensitive names, read/permission/create/open/write/close/remove failures and deterministic pause points. Seven browser regressions first failed against the baseline with content assertions.

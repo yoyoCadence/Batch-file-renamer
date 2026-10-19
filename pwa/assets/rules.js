@@ -1,3 +1,5 @@
+import { csvEscape, parseCsvRecords, spreadsheetCell } from "./csv.js";
+import { normalizeRowStatus } from "./status.js";
 const INVALID_FILENAME_RE = /[<>:"/\\|?*\x00-\x1f]/g;
 
 export const VALUE_MODES = ["Static", "List", "SeqUp", "SeqDown", "Delete"];
@@ -5,6 +7,14 @@ export const TARGETS = ["Segment", "Character", "Replace", "Case", "Affix", "Ext
 export const CASE_MODES = ["upper", "lower", "title"];
 export const AFFIX_POSITIONS = ["prefix", "suffix"];
 export const CLEANUP_MODES = ["trimSpaces", "spacesToUnderscore", "removeSpecial", "collapseSeparators"];
+const VALUE_FIELDS = ["valueMode", "staticValue", "seqStart", "seqStep", "pad"];
+export const RULE_FIELDS = {
+  Segment: ["fromEnd", "delimiter", "segmentNo", ...VALUE_FIELDS],
+  Character: ["charStart", "charLength", ...VALUE_FIELDS],
+  Replace: ["find", "replaceWith", "useRegex", "caseInsensitive"],
+  Case: ["caseMode"], Affix: ["affixPosition", "affixText"],
+  Extension: ["newExtension"], Cleanup: ["cleanupMode"]
+};
 
 // Rule and execution failures surface in the preview status column, so each one carries a
 // stable `code` plus `params` that the UI can look up in its translation catalog. The
@@ -42,7 +52,7 @@ export function normalizeRule(input) {
   };
   const oneOf = (value, allowed, fallback) => allowed.includes(String(value)) ? String(value) : fallback;
 
-  return {
+  const normalized = {
     target,
     fromEnd: Boolean(input.fromEnd ?? input.FromEnd),
     delimiter: String(input.delimiter ?? input.Delimiter ?? "-"),
@@ -67,6 +77,8 @@ export function normalizeRule(input) {
     // rules saved before T032) counts as enabled.
     enabled: input.enabled !== false
   };
+  const fields = RULE_FIELDS[target];
+  return Object.fromEntries(["target", "enabled", ...fields].map((key) => [key, normalized[key]]));
 }
 
 export function normalizeRules(list) {
@@ -205,8 +217,11 @@ export function stripTrailingDotOrSpace(name) {
 
 // Windows reserves the name regardless of extension, so the prefix has to land on the base.
 export function escapeReservedName(name) {
-  const { base, ext } = splitFilename(name);
-  return `${base}_${ext}`;
+  const fileName = getFileName(name);
+  if (!isReservedFilename(fileName)) return fileName;
+  const dot = fileName.indexOf(".");
+  const head = dot < 0 ? fileName : fileName.slice(0, dot);
+  return `${head.trimEnd()}_${dot < 0 ? "" : fileName.slice(dot)}`;
 }
 
 // Append -1, -2, ... before the extension until the name is free. `taken` holds normalized
@@ -311,95 +326,111 @@ export function ruleValue(rule, rowIndex, valueLines = [], now = new Date()) {
   return text;
 }
 
-export function applyRulesToName(fileName, rules = [], rowIndex = 0, valueLines = [], now = new Date()) {
-  const { base: originalBase, ext: originalExt } = splitFilename(fileName);
-  let base = originalBase;
-  // The extension used to be fixed for the whole pass; the Extension target can now change it.
-  let ext = originalExt;
-
+export function traceRulesToName(fileName, rules = [], rowIndex = 0, valueLines = [], now = new Date()) {
+  let { base, ext } = splitFilename(fileName);
+  const steps = [];
+  let error = null;
   for (const rule of rules) {
-    const target = rule.target || rule.Target || "Segment";
+    const before = `${base}${ext}`;
+    if (rule.enabled === false) { steps.push({ before, after: before, disabled: true }); continue; }
+    if (error) { steps.push({ before, after: before, blocked: true }); continue; }
+    try {
+      ({ base, ext } = applyRuleParts(base, ext, rule, rowIndex, valueLines, now));
+      steps.push({ before, after: `${base}${ext}` });
+    } catch (failure) { error = failure; steps.push({ before, after: before, error: failure }); }
+  }
+  return { targetName: `${base}${ext}`, steps, error };
+}
 
-    if (target === "Replace") {
-      base = applyReplace(base, rule);
-      continue;
-    }
+export function applyRulesToName(fileName, rules = [], rowIndex = 0, valueLines = [], now = new Date()) {
+  const result = traceRulesToName(fileName, rules, rowIndex, valueLines, now);
+  if (result.error) throw result.error;
+  return result.targetName;
+}
 
-    if (target === "Case") {
-      base = applyCaseTransform(base, rule);
-      continue;
-    }
+function applyRuleParts(base, ext, rule, rowIndex, valueLines, now) {
+  const target = rule.target || rule.Target || "Segment";
 
-    if (target === "Affix") {
-      base = applyAffix(base, rule, now);
-      continue;
-    }
-
-    if (target === "Extension") {
-      ext = applyExtensionChange(rule);
-      continue;
-    }
-
-    if (target === "Cleanup") {
-      base = applyCleanup(base, rule);
-      continue;
-    }
-
-    let value = cleanPart(ruleValue(rule, rowIndex, valueLines, now));
-
-    if (target === "Segment") {
-      const delimiter = String(rule.delimiter ?? rule.Delimiter ?? "");
-      if (!delimiter) {
-        throw codedError("delimiterEmpty", "Delimiter cannot be empty");
-      }
-      const parts = base.split(delimiter);
-      const segmentNo = toInteger(rule.segmentNo ?? rule.SegmentNo, 1);
-      if (segmentNo < 1 || segmentNo > parts.length) {
-        throw codedError("segmentOutOfRange", `Segment ${segmentNo} out of range. Parts=${parts.length}`, {
-          segmentNo,
-          parts: parts.length,
-          delimiter
-        });
-      }
-      const fromEnd = Boolean(rule.fromEnd ?? rule.FromEnd);
-      const index = fromEnd ? parts.length - segmentNo : segmentNo - 1;
-      const mode = rule.valueMode || rule.ValueMode || "Static";
-      if (mode === "Delete") {
-        parts.splice(index, 1);
-      } else {
-        parts[index] = value;
-      }
-      base = parts.join(delimiter);
-      continue;
-    }
-
-    const start = toInteger(rule.charStart ?? rule.CharStart, 1);
-    let length = toInteger(rule.charLength ?? rule.CharLength, 0);
-    if (start < 1) {
-      throw codedError("charStartTooSmall", "Char start must be >= 1", { charStart: start });
-    }
-    if (start > base.length + 1) {
-      throw codedError("charStartBeyondLength", `Char start ${start} beyond length ${base.length}`, {
-        charStart: start,
-        length: base.length
-      });
-    }
-    if (length < 0) {
-      throw codedError("charLengthNegative", "Char length cannot be negative", { charLength: length });
-    }
-
-    const zeroIndex = start - 1;
-    if (zeroIndex + length > base.length) {
-      length = base.length - zeroIndex;
-    }
-    if ((rule.valueMode || rule.ValueMode) === "Delete") {
-      value = "";
-    }
-    base = `${base.slice(0, zeroIndex)}${value}${base.slice(zeroIndex + length)}`;
+  if (target === "Replace") {
+    base = applyReplace(base, rule);
+    return { base, ext };
   }
 
-  return `${base}${ext}`;
+  if (target === "Case") {
+    base = applyCaseTransform(base, rule);
+    return { base, ext };
+  }
+
+  if (target === "Affix") {
+    base = applyAffix(base, rule, now);
+    return { base, ext };
+  }
+
+  if (target === "Extension") {
+    ext = applyExtensionChange(rule);
+    return { base, ext };
+  }
+
+  if (target === "Cleanup") {
+    base = applyCleanup(base, rule);
+    return { base, ext };
+  }
+
+  let value = cleanPart(ruleValue(rule, rowIndex, valueLines, now));
+
+  if (target === "Segment") {
+    const delimiter = String(rule.delimiter ?? rule.Delimiter ?? "");
+    if (!delimiter) {
+      throw codedError("delimiterEmpty", "Delimiter cannot be empty");
+    }
+    const parts = base.split(delimiter);
+    const segmentNo = toInteger(rule.segmentNo ?? rule.SegmentNo, 1);
+    if (segmentNo < 1 || segmentNo > parts.length) {
+      throw codedError("segmentOutOfRange", `Segment ${segmentNo} out of range. Parts=${parts.length}`, {
+        segmentNo,
+        parts: parts.length,
+        delimiter
+      });
+    }
+    const fromEnd = Boolean(rule.fromEnd ?? rule.FromEnd);
+    const index = fromEnd ? parts.length - segmentNo : segmentNo - 1;
+    const mode = rule.valueMode || rule.ValueMode || "Static";
+    if (mode === "Delete") {
+      parts.splice(index, 1);
+    } else {
+      parts[index] = value;
+    }
+    base = parts.join(delimiter);
+    return { base, ext };
+  }
+
+  const start = toInteger(rule.charStart ?? rule.CharStart, 1);
+  let length = toInteger(rule.charLength ?? rule.CharLength, 0);
+  if (start < 1) {
+    throw codedError("charStartTooSmall", "Char start must be >= 1", { charStart: start });
+  }
+  if (start > base.length + 1) {
+    throw codedError("charStartBeyondLength", `Char start ${start} beyond length ${base.length}`, {
+      charStart: start,
+      length: base.length
+    });
+  }
+  if (length < 0) {
+    throw codedError("charLengthNegative", "Char length cannot be negative", { charLength: length });
+  }
+
+  const zeroIndex = start - 1;
+  if (zeroIndex + length > base.length) {
+    length = base.length - zeroIndex;
+  }
+  if ((rule.valueMode || rule.ValueMode) === "Delete") {
+    value = "";
+  }
+  base = `${base.slice(0, zeroIndex)}${value}${base.slice(zeroIndex + length)}`;
+
+  return { base, ext };
 }
+
 
 // Add fixed text to the front or back of the base name. This is the beginner-facing way to
 // do what previously required a Character rule with length 0 -- correct, but nobody guesses it.
@@ -467,7 +498,7 @@ function applyReplace(base, rule) {
   } catch (error) {
     throw codedError("invalidRegex", `Invalid regular expression: ${error.message}`, { message: error.message });
   }
-  return base.replace(pattern, replacement);
+  return base.replace(pattern, useRegex ? replacement : () => replacement);
 }
 
 // Case transform on the base name. Title case capitalizes the first letter of each
@@ -503,7 +534,7 @@ export function buildPreviewRows(options) {
     sourceFolderFallback = "Source folder"
   } = options;
   const valueLines = parseValueLines(valueListText);
-  const usesList = rules.some((rule) => (rule.valueMode || rule.ValueMode) === "List");
+  const usesList = rules.some((rule) => ["Segment", "Character"].includes(rule.target || rule.Target) && (rule.valueMode || rule.ValueMode) === "List");
 
   // Guard results carry a `messageCode` (plus params where the text is parameterized) for the
   // same reason thrown errors do: the English `message` stays stable for logs, while the UI
@@ -628,6 +659,7 @@ export function validateRows(rows, options = {}) {
     const targetPath = joinDisplayPath(next.targetFolder, next.targetName);
     next.targetPath = targetPath;
     if (next.terminal) return next;
+    if (next.importError) return { ...next, status: "CSV invalid" };
     if (excluded.has(next.id)) return { ...next, status: "Excluded" };
     if (next.imported && !next.bound) return { ...next, status: "Binding required" };
     if (next.filesystemError) return { ...next, status: "Filesystem unknown" };
@@ -653,7 +685,7 @@ export function validateRows(rows, options = {}) {
     } else if (hasTrailingDotOrSpace(next.targetName)) {
       status = "Trailing dot or space";
     } else if (next.action === "Rename" && normalizePathKey(next.sourcePath) === normalizePathKey(targetPath)) {
-      status = "No change";
+      status = String(next.sourcePath).replaceAll("\\", "/") === targetPath.replaceAll("\\", "/") ? "No change" : "Case-only unsupported";
     } else if (next.targetExists || existingTargets.has(normalizePathKey(targetPath))) {
       status = "Target exists";
     } else if (groups.get(keyFor(next)) > 1) {
@@ -661,7 +693,7 @@ export function validateRows(rows, options = {}) {
     }
     next.status = status;
     return next;
-  });
+  }).map(normalizeRowStatus);
 }
 
 // Given the renames a batch performed ({ from, to } where a file moved from `from` to `to`,
@@ -675,11 +707,15 @@ export function planUndoOperations(renames = []) {
   }));
 }
 
-export function rowsToCsv(rows) {
-  const columns = ["Action", "SourceName", "SourcePath", "TargetName", "TargetFolder", "TargetPath", "Status"];
+export function rowsToCsv(rows, { spreadsheet = false } = {}) {
+  const columns = ["SchemaVersion", "Format", "Action", "SourceName", "SourcePath", "TargetName", "TargetFolder", "TargetPath", "Status"];
   const lines = [columns.join(",")];
   for (const row of rows) {
-    lines.push(columns.map((column) => csvEscape(row[column[0].toLowerCase() + column.slice(1)] ?? row[column] ?? "")).join(","));
+    const values = { ...row, targetPath: joinDisplayPath(row.targetFolder, row.targetName), schemaVersion: 2, format: spreadsheet ? "spreadsheet-view" : "raw-plan" };
+    lines.push(columns.map((column) => {
+      const value = values[column[0].toLowerCase() + column.slice(1)] ?? "";
+      return csvEscape(spreadsheet ? spreadsheetCell(value) : value);
+    }).join(","));
   }
   return lines.join("\r\n");
 }
@@ -711,29 +747,44 @@ export function parsePreviewCsv(text, options = {}) {
   if (records.length < 2) {
     return [];
   }
-  const headers = records[0].map((header) => header.trim());
+  const originalHeaders = records[0].map((header) => header.trim());
+  if (new Set(originalHeaders).size !== originalHeaders.length || originalHeaders.some((value) => !value)) {
+    throw codedError("csvInvalid", "CSV headers must be non-empty and unique.");
+  }
+  const headers = originalHeaders.map((header) => Object.entries(options.columnMap || {}).find(([, value]) => value === header)?.[0] || header);
+  if (new Set(headers).size !== headers.length) throw codedError("csvInvalid", "Column mapping creates duplicate fields.");
   for (const field of ["Action", "SourceName", "TargetName"]) {
     if (!headers.includes(field)) throw codedError("csvInvalid", `CSV is missing required field: ${field}`);
   }
-  return records.slice(1).filter((record) => record.some((cell) => cell !== "")).map((record, index) => {
+  const rows = records.slice(1).map((record, index) => ({ record, no: index + 2 })).filter(({ record }) => record.some((cell) => cell !== "")).map(({ record, no }) => {
+    let importError = record.length !== headers.length ? `CSV record ${no} has ${record.length} fields; expected ${headers.length}.` : null;
+    let importErrorCode = "fields";
     const data = {};
     headers.forEach((header, cellIndex) => {
       data[header] = record[cellIndex] ?? "";
     });
+    if (data.SchemaVersion && data.SchemaVersion !== "2") throw codedError("csvInvalid", `Unsupported CSV version: ${data.SchemaVersion}`);
+    if (data.Format && data.Format !== "raw-plan") throw codedError("csvInvalid", "Spreadsheet view cannot be imported. Use the raw plan CSV.");
+    if (data.SchemaVersion === "2" && (!data.SourcePath || !data.TargetPath || !data.TargetFolder || data.Format !== "raw-plan")) {
+      importError = `CSV record ${no} is missing required v2 plan fields.`;
+    }
     const targetPath = data.TargetPath || "";
     const sourcePath = data.SourcePath || "";
     const targetName = data.TargetName || getFileName(targetPath) || getFileName(sourcePath);
     const targetFolder = data.TargetFolder || getFolderName(targetPath) || getFolderName(sourcePath) || importedFolderLabel;
     const sourceName = data.SourceName || getFileName(sourcePath);
-    if (!["Rename", "Copy"].includes(data.Action) || !sourceName || !targetName || !targetFolder) {
-      throw codedError("csvInvalid", `CSV row ${index + 2} has an invalid action or empty required field.`);
+    if (!["Rename", "Copy"].includes(data.Action) || !data.SourceName || !data.TargetName || !targetFolder) {
+      importError = `CSV record ${no} has an invalid action or empty required field.`;
+      importErrorCode = "action";
     }
     if ((sourcePath && getFileName(sourcePath) !== sourceName) || (targetPath && targetPath !== joinDisplayPath(targetFolder, targetName))) {
-      throw codedError("csvInvalid", `CSV row ${index + 2} has inconsistent name/path fields.`);
+      importError = `CSV record ${no} has inconsistent name/path fields.`;
+      importErrorCode = "path";
     }
+    if (importError && !options.collectErrors) throw codedError("csvInvalid", importError);
 
     return makePreviewRow({
-      id: `import-${Date.now()}-${index}`,
+      id: `import-${crypto.randomUUID()}`,
       action: data.Action || "Rename",
       sourceName,
       sourcePath,
@@ -743,9 +794,26 @@ export function parsePreviewCsv(text, options = {}) {
       targetFolderKey: "imported",
       sourceRef: null,
       status: "Binding required",
-      imported: true
+      imported: true,
+      importError: importError ? { record: no, code: importErrorCode, message: importError } : null,
+      importedRecord: no
     });
   });
+  const identities = new Map();
+  for (const row of rows) {
+    // One source can only be renamed once per plan; a template may be copied to distinct targets.
+    const identity = JSON.stringify(row.action === "Rename"
+      ? [row.action, row.sourcePath, row.sourceName]
+      : [row.action, row.sourcePath, row.sourceName, row.targetFolder, row.targetName]);
+    if (!identities.has(identity)) identities.set(identity, []);
+    identities.get(identity).push(row);
+  }
+  for (const group of identities.values()) {
+    if (group.length < 2) continue;
+    if (!options.collectErrors) throw codedError("csvInvalid", "CSV contains duplicate operations.");
+    for (const row of group) row.importError = { record: row.importedRecord, code: "duplicate", message: "Duplicate CSV operation." };
+  }
+  return rows;
 }
 
 function applyNameResult(fileName, rules, index, valueLines, now) {
@@ -781,6 +849,8 @@ function makePreviewRow(row) {
     statusDetail: row.statusDetail || null,
     sourceRef: row.sourceRef || null,
     imported: Boolean(row.imported),
+    importError: row.importError || null,
+    importedRecord: row.importedRecord || null,
     targetExists: Boolean(row.targetExists)
   };
 }
@@ -792,55 +862,4 @@ function toInteger(value, fallback) {
 
 function normalizePathKey(path) {
   return String(path || "").replaceAll("\\", "/").toLowerCase();
-}
-
-function csvEscape(value) {
-  const text = String(value ?? "");
-  if (/[",\r\n]/.test(text)) {
-    return `"${text.replaceAll('"', '""')}"`;
-  }
-  return text;
-}
-
-function parseCsvRecords(text) {
-  const records = [];
-  let record = [];
-  let cell = "";
-  let inQuotes = false;
-
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
-    const next = text[index + 1];
-
-    if (inQuotes) {
-      if (char === '"' && next === '"') {
-        cell += '"';
-        index += 1;
-      } else if (char === '"') {
-        inQuotes = false;
-      } else {
-        cell += char;
-      }
-      continue;
-    }
-
-    if (char === '"') {
-      inQuotes = true;
-    } else if (char === ",") {
-      record.push(cell);
-      cell = "";
-    } else if (char === "\n") {
-      record.push(cell.replace(/\r$/, ""));
-      records.push(record);
-      record = [];
-      cell = "";
-    } else {
-      cell += char;
-    }
-  }
-
-  if (inQuotes) throw codedError("csvInvalid", "CSV has an unterminated quoted field.");
-  record.push(cell.replace(/\r$/, ""));
-  records.push(record);
-  return records;
 }

@@ -1,3 +1,5 @@
+import { readJson, writeJson } from "./storage.js";
+import { PHASE2_MESSAGES } from "./phase2-messages.js";
 import { REVIEW_MESSAGES } from "./review-messages.js";
 
 export const LANGUAGES = [
@@ -582,7 +584,7 @@ export const TRANSLATIONS = {
     "safety.legend": "狀態圖例",
     "safety.ok": "可執行",
     "safety.blocked": "需處理",
-    "safety.error": "規則錯誤",
+    "safety.error": "錯誤",
     "safety.none": "尚未產生預覽。",
     "safety.summary": "{ok} 列可執行，{blocked} 列需處理，{error} 列有規則錯誤。",
     "settings.pet": "寵物助手",
@@ -935,7 +937,7 @@ export const TRANSLATIONS = {
     "safety.legend": "状态图例",
     "safety.ok": "可执行",
     "safety.blocked": "需处理",
-    "safety.error": "规则错误",
+    "safety.error": "错误",
     "safety.none": "尚未生成预览。",
     "safety.summary": "{ok} 行可执行，{blocked} 行需处理，{error} 行有规则错误。",
     "settings.pet": "宠物助手",
@@ -1288,7 +1290,7 @@ export const TRANSLATIONS = {
     "safety.legend": "Status legend",
     "safety.ok": "Executable",
     "safety.blocked": "Needs work",
-    "safety.error": "Rule error",
+    "safety.error": "Errors",
     "safety.none": "No preview yet.",
     "safety.summary": "{ok} executable, {blocked} need attention, {error} rule error(s).",
     "settings.pet": "Pet companion",
@@ -1641,7 +1643,7 @@ export const TRANSLATIONS = {
     "safety.legend": "状態凡例",
     "safety.ok": "実行可能",
     "safety.blocked": "要対応",
-    "safety.error": "ルールエラー",
+    "safety.error": "エラー",
     "safety.none": "プレビューはまだありません。",
     "safety.summary": "{ok} 行実行可能、{blocked} 行要対応、{error} 行ルールエラー。",
     "settings.pet": "ペット助手",
@@ -2281,6 +2283,9 @@ for (const [language, entries] of Object.entries(CATALOG_TRANSLATIONS)) {
 for (const [language, entries] of Object.entries(REVIEW_MESSAGES)) {
   Object.assign(TRANSLATIONS[language], entries);
 }
+for (const [language, entries] of Object.entries(PHASE2_MESSAGES)) {
+  Object.assign(TRANSLATIONS[language], entries);
+}
 
 export function t(language, key, params = {}) {
   const dictionary = TRANSLATIONS[language] || TRANSLATIONS[DEFAULT_SETTINGS.language];
@@ -2290,6 +2295,7 @@ export function t(language, key, params = {}) {
 }
 
 export function normalizeSettings(input = {}) {
+  if (!input || typeof input !== "object") input = {};
   return {
     language: hasId(LANGUAGES, input.language) ? input.language : DEFAULT_SETTINGS.language,
     template: hasId(TEMPLATES, input.template) ? input.template : DEFAULT_SETTINGS.template,
@@ -2300,16 +2306,8 @@ export function normalizeSettings(input = {}) {
   };
 }
 
-export function loadSettings(storage = globalThis.localStorage) {
-  if (!storage) {
-    return { ...DEFAULT_SETTINGS };
-  }
-  try {
-    const raw = storage.getItem("batch-file-renamer.settings");
-    return normalizeSettings(raw ? JSON.parse(raw) : DEFAULT_SETTINGS);
-  } catch {
-    return { ...DEFAULT_SETTINGS };
-  }
+export function loadSettings(storage) {
+  return normalizeSettings(readJson(storage, "batch-file-renamer.settings", DEFAULT_SETTINGS));
 }
 
 // Named rule presets and the last-used rule stack. Kept under separate storage keys from the
@@ -2319,33 +2317,9 @@ const PRESETS_KEY = "batch-file-renamer.presets";
 const SESSION_KEY = "batch-file-renamer.session";
 export const MAX_PRESETS = 50;
 
-function readJson(storage, key, fallback) {
-  if (!storage) {
-    return fallback;
-  }
-  try {
-    const raw = storage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function writeJson(storage, key, value) {
-  if (!storage) {
-    return;
-  }
-  try {
-    storage.setItem(key, JSON.stringify(value));
-  } catch {
-    // Storage can be full or blocked (private mode). Persistence is a convenience here, so
-    // failing to save must never interrupt what the user is doing.
-  }
-}
-
 // A preset is { id, name, rules }. Rules are stored raw and normalized by the caller through
 // the rule engine, which owns what a valid rule looks like.
-export function loadRulePresets(storage = globalThis.localStorage) {
+export function loadRulePresets(storage) {
   const raw = readJson(storage, PRESETS_KEY, []);
   if (!Array.isArray(raw)) {
     return [];
@@ -2360,16 +2334,16 @@ export function loadRulePresets(storage = globalThis.localStorage) {
     .slice(0, MAX_PRESETS);
 }
 
-export function saveRulePresets(presets, storage = globalThis.localStorage) {
+export function saveRulePresets(presets, storage) {
   const trimmed = (Array.isArray(presets) ? presets : []).slice(0, MAX_PRESETS);
   writeJson(storage, PRESETS_KEY, trimmed);
   return trimmed;
 }
 
 // The last-used rule stack, so reopening the app does not start from an empty builder.
-// Source files and the scope filter are deliberately not persisted: file handles cannot be
-// restored, and a filter carried over to a different folder would silently narrow it.
-export function loadSession(storage = globalThis.localStorage) {
+// Sources/handles are not persisted by this app. A scope from another folder could
+// silently narrow new input, so source selection and scope are session-only.
+export function loadSession(storage) {
   const raw = readJson(storage, SESSION_KEY, {});
   const session = raw && typeof raw === "object" ? raw : {};
   return {
@@ -2379,7 +2353,7 @@ export function loadSession(storage = globalThis.localStorage) {
   };
 }
 
-export function saveSession(session, storage = globalThis.localStorage) {
+export function saveSession(session, storage) {
   writeJson(storage, SESSION_KEY, {
     rules: Array.isArray(session?.rules) ? session.rules : [],
     valueListText: typeof session?.valueListText === "string" ? session.valueListText : "",
@@ -2387,11 +2361,9 @@ export function saveSession(session, storage = globalThis.localStorage) {
   });
 }
 
-export function saveSettings(settings, storage = globalThis.localStorage) {
+export function saveSettings(settings, storage) {
   const normalized = normalizeSettings(settings);
-  if (storage) {
-    storage.setItem("batch-file-renamer.settings", JSON.stringify(normalized));
-  }
+  writeJson(storage, "batch-file-renamer.settings", normalized);
   return normalized;
 }
 

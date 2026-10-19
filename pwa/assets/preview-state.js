@@ -1,6 +1,7 @@
 // Pure preview state transitions. Overrides and exclusions are keyed by source
 // identity, independently of the visible order, scope or search results.
 import { joinDisplayPath } from "./rules.js";
+import { statusBucket } from "./status.js";
 
 export function mergeOverrides(rows, overrides) {
   return rows.map((row) => {
@@ -31,6 +32,7 @@ export function attachBindings(rows, { outputDirectory } = {}) {
 // guess a path from a basename. The user explicitly binds after selecting files.
 export function bindImportedRows(rows, { mode, sources, template, outputDirectory }) {
   return rows.map((row) => {
+    if (row.importError) return { ...row, bound: false, sourceRef: null, targetDirectory: null };
     let source = null;
     let directory = null;
     if (row.action === "Rename" && mode === "rename") {
@@ -57,17 +59,12 @@ export function bindImportedRows(rows, { mode, sources, template, outputDirector
 }
 
 export function rowBucket(status) {
-  if (status === "Done" || status === "Undone") return "done";
-  if (status === "Excluded") return "excluded";
-  if (status === "Partial") return "partial";
-  if (status === "OK") return "ok";
-  if (String(status).startsWith("Error:")) return "error";
-  return "warn";
+  return statusBucket(typeof status === "string" ? { status } : status);
 }
 
 export function rowCounts(rows) {
   return rows.reduce((counts, row) => {
-    const bucket = rowBucket(row.status);
+    const bucket = rowBucket(row);
     if (bucket === "warn" || bucket === "error") {
       counts.blocked++;
       if (bucket === "error") counts.error++;

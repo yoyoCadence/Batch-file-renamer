@@ -8,7 +8,7 @@ test("SW activation deletes only older caches in this exact application scope", 
   const deleted = [];
   let activation;
   const namespace = "batch-file-renamer:%2Fproject%2F:";
-  const keys = ["unrelated-pwa-v1", "batch-file-renamer-v7", "batch-file-renamer:%2Fother%2F:batch-file-renamer-v7", `${namespace}batch-file-renamer-v7`, `${namespace}batch-file-renamer-v8`];
+  const keys = ["unrelated-pwa-v1", "batch-file-renamer-v7", "batch-file-renamer:%2Fother%2F:batch-file-renamer-v7", `${namespace}batch-file-renamer-v7`, `${namespace}batch-file-renamer-v9`];
   const context = {
     URL,
     self: { registration: { scope: "https://example.com/project/" }, clients: { claim() {} }, addEventListener(name, handler) { handlers[name] = handler; } },

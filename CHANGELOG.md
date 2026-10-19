@@ -5,6 +5,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Review Plan V1.0.0 — Phase 2 (T048–T051)
+
+- Normalize rules by type and share engine traces across cards, samples and previews. Repair multi-dot reserved names and make literal dollar replacement predictable.
+- Drive status summaries, filters and execution checks with stable codes. Keep settings usable when localStorage access or quota fails, with a visible persistence warning.
+- Add schema 2 raw CSV plans, explicit column/source binding, per-record errors and import limits. Separate spreadsheet-safe view exports from exact round-trip data; reject repeated Rename sources.
+- Explicitly block case-only renames until native browser safety is established. Bump the shell cache to v9. See `docs/review-phase-2.md` for verification and remaining scope.
+
 ### Review Plan V1.0.0 — Phase 0/1 (T045–T047)
 
 - Fail closed on unknown filesystem state; capture immutable plans and verify file fingerprints before destructive steps. Default to strict preview; controlled-folder copy/delete requires session-only opt-in with explicit non-atomic limits.

@@ -2200,3 +2200,7 @@ body[data-template="cyber"] .workspace {
 }
 .write-policy p { margin: 0 0 8px; }
 .manual-marker { display: block; font-size: 0.85rem; margin-top: 4px; }
+.csv-binding { padding: 16px; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+.csv-binding h3 { margin-top: 0; }
+.csv-binding select { min-width: 0; width: 100%; }
+#csvErrorReport { max-height: 180px; overflow: auto; }
