@@ -209,6 +209,7 @@
               <label id="replaceField" hidden>
                 <span data-i18n="field.replaceWith">取代為</span>
                 <input id="replaceInput" type="text">
+                <small class="field-hint" data-i18n="phase2.replaceHint">一般取代把替換值視為文字；正規表達式模式才解讀 $1、$&。</small>
               </label>
               <label id="regexField" class="toggle-row" hidden>
                 <input id="useRegexInput" type="checkbox">
@@ -282,6 +283,7 @@
               <button id="resetTargetNamesButton" type="button" data-i18n="button.useSourceNames">套用原檔名</button>
               <button id="resetOverridesButton" type="button" data-i18n="review.resetOverrides">重設人工修改</button>
               <button id="exportCsvButton" type="button" data-i18n="button.exportCsv">匯出 CSV</button>
+              <button id="exportSpreadsheetButton" type="button" data-i18n="phase2.spreadsheetExport">匯出試算表閱讀版</button>
               <button id="importCsvButton" type="button" data-i18n="button.importCsv">匯入 CSV</button>
               <button id="bindCsvButton" type="button" data-i18n="review.bindCsv" hidden>綁定 CSV 至所選檔案</button>
               <button id="newPreviewButton" type="button" data-i18n="review.newPreview" hidden>離開 CSV，重新產生規則預覽</button>
@@ -293,6 +295,15 @@
             </div>
             <input id="csvInput" type="file" accept=".csv,text/csv" hidden>
           </div>
+
+          <section id="csvBindingPanel" class="csv-binding" hidden aria-labelledby="csvBindingTitle">
+            <h3 id="csvBindingTitle" data-i18n="phase2.csvTitle">CSV：欄位對應 → 確認來源 → 綁定檔案</h3>
+            <p data-i18n="phase2.csvHint">先確認欄位對應，再選擇來源／模板及實際輸出資料夾。來源路徑須與所選檔案完全匹配；不明確的列保持阻擋。</p>
+            <div id="csvMappingFields" class="field-grid"></div>
+            <button id="applyCsvMappingButton" type="button" data-i18n="phase2.applyMapping">套用欄位對應並檢查</button>
+            <p id="csvBindingSummary" aria-live="polite"></p>
+            <ul id="csvErrorReport"></ul>
+          </section>
 
           <div class="folder-tools">
             <label>
@@ -317,7 +328,7 @@
             <div id="statusLegend" class="status-legend" role="group" aria-label="Status legend" data-i18n-aria-label="safety.legend">
               <button type="button" class="legend-chip" data-filter="ok" aria-pressed="false"><i class="dot ok"></i><b data-i18n="safety.ok">可執行</b><em id="legendCountOk">0</em></button>
               <button type="button" class="legend-chip" data-filter="warn" aria-pressed="false"><i class="dot warn"></i><b data-i18n="safety.blocked">需處理</b><em id="legendCountWarn">0</em></button>
-              <button type="button" class="legend-chip" data-filter="error" aria-pressed="false"><i class="dot error"></i><b data-i18n="safety.error">規則錯誤</b><em id="legendCountError">0</em></button>
+              <button type="button" class="legend-chip" data-filter="error" aria-pressed="false"><i class="dot error"></i><b data-i18n="safety.error">錯誤</b><em id="legendCountError">0</em></button>
             </div>
           </div>
 
@@ -419,6 +430,7 @@
         </button>
       </div>
 
+      <p id="persistenceWarning" class="write-policy" role="status" data-i18n="phase2.storageFailed" hidden>瀏覽器無法儲存；設定仍套用於本次工作階段，重新載入後可能遺失。</p>
       <footer class="statusbar">
         <span id="statusText">就緒。</span>
       </footer>

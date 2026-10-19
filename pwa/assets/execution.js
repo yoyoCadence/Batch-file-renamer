@@ -1,6 +1,7 @@
 // Execution owns immutable plans and append-only stage journals. No DOM/global
 // UI state is read after planning. Recovery never discards unresolved records.
 import { codedError, validateRows } from "./rules.js";
+import { isReady } from "./status.js";
 import {
   assertAbsent, assertFile, createDirectoryRegistry, ensurePermission,
   fileExists, fingerprint, getSourceFile, sameEntry
@@ -15,7 +16,7 @@ const record = (entry, stage, detail = "") => {
 export async function createExecutionPlan(rows, { controlled = false } = {}) {
   const identity = createDirectoryRegistry();
   const items = [];
-  for (const row of rows.filter((candidate) => candidate.status === "OK")) {
+  for (const row of rows.filter(isReady)) {
     if (!["Rename", "Copy"].includes(row.action) || !row.sourceRef || !row.targetDirectory) {
       throw codedError("bindingRequired", "Bind this row to real source and target handles before execution.");
     }
@@ -43,7 +44,7 @@ export async function createExecutionPlan(rows, { controlled = false } = {}) {
   }
   // Resolve actual directory identity BEFORE duplicate validation, including
   // different handle objects for the same directory and misleading labels.
-  if (validateRows(items).some((item) => item.status !== "OK")) {
+  if (validateRows(items).some((item) => !isReady(item))) {
     throw codedError("targetOccupied", "Execution plan contains conflicting targets.");
   }
   return Object.freeze({ id: crypto.randomUUID(), createdAt: now(), controlled, items: Object.freeze(items) });

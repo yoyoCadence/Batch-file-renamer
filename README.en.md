@@ -52,7 +52,8 @@ Batch rename tools fail users when they hide the consequence of a click. This ap
 - One-click repairs: auto-number, replace invalid characters, escape Windows reserved names, trim trailing dots/spaces.
 - Batch exclusion: check rows to leave them out of the run.
 - Undo the last rename batch, and export a per-row execution log CSV.
-- CSV import/export for manual review or spreadsheet workflows.
+- Versioned CSV plans with column mapping, explicit source binding and per-record errors. Raw plans round-trip exactly; a separate spreadsheet-safe view cannot be imported.
+- Case-only renames remain explicitly blocked. Settings stay usable when storage is unavailable. See the [Phase 2 verification and limits](docs/review-phase-2.md) (Traditional Chinese).
 
 **Appearance**
 

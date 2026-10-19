@@ -2,7 +2,7 @@
 // with no revalidation, so a returning user keeps serving the old app.js until a byte change
 // in THIS file makes the browser install a new worker. Shipping app changes without bumping
 // the version means nobody who has already opened the app ever sees them.
-const CACHE_NAME = "batch-file-renamer-v8";
+const CACHE_NAME = "batch-file-renamer-v9";
 const CACHE_NAMESPACE = `batch-file-renamer:${encodeURIComponent(new URL(self.registration.scope).pathname)}:`;
 const CACHE_KEY = `${CACHE_NAMESPACE}${CACHE_NAME}`;
 const APP_SHELL = [
@@ -12,8 +12,12 @@ const APP_SHELL = [
   "./assets/style.css",
   "./assets/app.js",
   "./assets/rules.js",
+  "./assets/csv.js",
+  "./assets/status.js",
+  "./assets/storage.js",
   "./assets/settings.js",
   "./assets/review-messages.js",
+  "./assets/phase2-messages.js",
   "./assets/filesystem.js",
   "./assets/execution.js",
   "./assets/preview-state.js",

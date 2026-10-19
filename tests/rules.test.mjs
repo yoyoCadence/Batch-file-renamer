@@ -483,11 +483,11 @@ const normalized = normalizeRule({
   staticValue: 42
 });
 assert.equal(normalized.segmentNo, 3, "numeric strings are parsed");
-assert.equal(normalized.charLength, 0, "unparseable numbers fall back to the default");
+assert.equal(normalized.charLength, undefined, "unrelated target fields are discarded");
 assert.equal(normalized.valueMode, "Static", "an unknown value mode falls back");
-assert.equal(normalized.caseMode, "upper");
-assert.equal(normalized.affixPosition, "prefix");
-assert.equal(normalized.cleanupMode, "trimSpaces");
+assert.equal(normalized.caseMode, undefined);
+assert.equal(normalized.affixPosition, undefined);
+assert.equal(normalized.cleanupMode, undefined);
 assert.equal(normalized.staticValue, "42", "values are coerced to strings");
 assert.equal(normalized.enabled, true);
 

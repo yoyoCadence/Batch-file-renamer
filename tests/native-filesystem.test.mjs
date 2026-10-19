@@ -6,6 +6,7 @@ import { mkdtemp, readFile, readdir, rm, stat, unlink, writeFile } from "node:fs
 import { basename, join, relative, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { createExecutionPlan, runBatch, undoBatch } from "../pwa/assets/execution.js";
+import { validateRows } from "../pwa/assets/rules.js";
 
 async function withDirectory(callback) {
   const root = await mkdtemp(join(tmpdir(), "bfr-native-"));
@@ -92,5 +93,21 @@ test("real temporary files: Copy preserves source; an external original blocks u
     assert.equal(await readFile(join(root, "a.txt"), "utf8"), "NEW_EXTERNAL");
     assert.equal(await readFile(join(root, "renamed.txt"), "utf8"), "ORIGINAL");
     assert.equal(rename.entries[0].undo, "unresolved");
+  });
+});
+
+test("real temporary files: detect OS case behavior but keep case-only browser execution blocked", async (context) => {
+  await withDirectory(async (root, directory) => {
+    await writeFile(join(root, "abc.txt"), "KEEP");
+    let sensitive = false;
+    try { await stat(join(root, "ABC.TXT")); } catch (error) { if (error.code === "ENOENT") sensitive = true; else throw error; }
+    context.diagnostic(`Temporary filesystem is case-${sensitive ? "sensitive" : "insensitive"}; native browser rename semantics are unverified.`);
+    const rows = validateRows([{ id: "case", action: "Rename", sourceName: "abc.txt", sourcePath: `${directory.name}/abc.txt`,
+      targetName: "ABC.txt", targetFolder: directory.name, targetDirectory: directory,
+      sourceRef: { directoryHandle: directory, fileHandle: await directory.getFileHandle("abc.txt") } }]);
+    assert.equal(rows[0].statusCode, "caseOnly");
+    assert.equal((await createExecutionPlan(rows, { controlled: true })).items.length, 0);
+    assert.equal(await readFile(join(root, "abc.txt"), "utf8"), "KEEP");
+    assert.deepEqual(await readdir(root), ["abc.txt"]);
   });
 });

@@ -141,7 +141,7 @@ test("generated pet action assets exist and are transparent pngs", async () => {
 
 test("service worker caches all project-bound runtime assets", async () => {
   const worker = await readFile("pwa/service-worker.js", "utf8");
-  assert.match(worker, /batch-file-renamer-v8/);
+  assert.match(worker, /batch-file-renamer-v9/);
   assert.match(worker, /SKIP_WAITING/);
   for (const asset of [
     "./assets/settings.js",
@@ -562,7 +562,7 @@ test("beginner rule presets are wired and localized", async () => {
   assert.match(rules, /function applyExtensionChange/);
   assert.match(rules, /function applyCleanup/);
   // The extension is no longer fixed for the whole pass; the Extension target rebinds it.
-  assert.match(rules, /let ext = originalExt/);
+  assert.match(rules, /let \{ base, ext \} = splitFilename/);
   // removeSpecial must keep letters/digits in any script, or CJK filenames would be gutted.
   assert.match(rules, /\\p\{L}\\p\{N}/);
 
